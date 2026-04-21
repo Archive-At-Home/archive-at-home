@@ -1,0 +1,13 @@
+services:
+  node:
+    image: ghcr.io/archive-at-home/archive-at-home/node:latest
+    volumes:
+      - ./config.yaml:/config.yaml:ro  # Mount config file (read-only)
+      - node_data:/data                # Persist SQLite database
+    restart: unless-stopped
+    # Optional: expose dashboard
+    ports:
+      - "8090:8090"
+
+volumes:
+  node_data:

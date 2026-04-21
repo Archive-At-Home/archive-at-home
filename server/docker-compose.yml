@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ehentai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  server:
+    image: ghcr.io/archive-at-home/archive-at-home/server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_ADDR: ":8080"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      CACHE_TTL: "168h"          # 7 days
+      TASK_LEASE_TTL: "2m"
+      TASK_WAIT_TIMEOUT: "90s"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      DB_NAME: "ehentai"
+      DB_SSLMODE: "disable"
+      CHECKIN_MIN_GP: "10000"
+      CHECKIN_MAX_GP: "20000"
+      EMAIL_AUTH_ENABLED: "false"
+      # Add your configuration here:
+      # TELEGRAM_BOT_TOKEN: "your-token"
+      # TELEGRAM_BOT_USERNAME: "your_bot"
+      # NODE_VERIFY_KEY: "your-public-key"
+      # ADMIN_TOKEN: "your-admin-token"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

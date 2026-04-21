@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp
+
+# Config files with sensitive data
+server/config.yaml
+node/config.yaml
+node/data/
+.env
+
+# Build artifacts
+server/server
+node/node
+dist/
+build/
+
+# Scripts
+*.bat

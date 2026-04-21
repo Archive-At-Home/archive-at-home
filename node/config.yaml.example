@@ -1,0 +1,59 @@
+# EHentai Node Configuration
+
+node:
+  # Unique identifier for this node (e.g., "node-001", "node-alice")
+  id: "node-001"
+
+  # ED25519 signature (Base64 encoded)
+  # Contact the platform maintainer to get your node ID and signature
+  signature: "SIGNATURE_HERE"
+
+server:
+  # WebSocket server URL
+  # Example: ws://localhost:8080/ws or wss://example.com/ws
+  url: "ws://localhost:8080/ws"
+
+ehentai:
+  # EHentai cookie for authentication
+  # Format: ipb_member_id=XXXXX; ipb_pass_hash=XXXXXXXXX
+  # You can get this from your browser's developer tools when logged into e-hentai.org
+  cookie: ""
+
+  # Whether to use ExHentai instead of E-Hentai
+  # Note: ExHentai requires additional setup and access
+  use_exhentai: false
+
+  # Maximum GP cost per day
+  # Set to -1 for unlimited
+  # This helps control daily spending
+  max_gp_cost: -1
+
+database:
+  # SQLite database path for storing parse logs
+  # Default: ./data/ehentai.db
+  path: "./data/ehentai.db"
+
+task:
+  # Base balance threshold for dynamic claim delay (in GP)
+  # Nodes with balance >= this value will claim tasks immediately (0 delay)
+  # Nodes with lower balance will have progressively longer delays
+  # This helps protect low-balance nodes from hitting the GP reserve threshold
+  # Uses quadratic function for non-linear delay: high balance = minimal delay, low balance = strong protection
+  # Default: 1000000
+  base_balance_gp: 1000000
+
+  # Maximum claim delay for low-balance nodes (in seconds)
+  # Nodes at the GP reserve threshold will wait this long before claiming
+  # Nodes with balance between reserve and base_balance_gp will have delays
+  # calculated via quadratic interpolation (delay increases rapidly near reserve)
+  # Default: 1
+  base_claim_delay: 1
+
+dashboard:
+  # Enable the web dashboard for monitoring node status
+  enabled: true
+
+  # Dashboard HTTP server address
+  # Format: :port or host:port
+  # Default: :8090 (avoid conflict with server on :8080)
+  address: ":8090"

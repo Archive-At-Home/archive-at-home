@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EHentai Node 控制台</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 EHentai Node 控制台</h1>
+            <div class="node-info">
+                <span id="nodeId">加载中...</span> •
+                <span id="serverUrl">加载中...</span>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h2 style="margin-bottom: 15px;">连接状态</h2>
+            <div id="connectionStatus">
+                <span class="status-indicator disconnected">
+                    <span class="dot"></span>
+                    未连接
+                </span>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="reconnect()">🔄 手动重连</button>
+                <button class="btn btn-secondary" onclick="refreshStatus()">♻️ 刷新状态</button>
+                <button class="btn btn-secondary" onclick="loadStats()">📊 刷新数据</button>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-label">今日任务</div>
+                <div class="stat-value small" id="todayTasksCompleted">0</div>
+                <div class="stat-sub">
+                    总计完成: <span id="tasksCompleted">0</span>
+                    <span id="taskFailInfo"></span>
+                </div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat-label">GP 余额</div>
+                <div class="stat-value small" id="gpBalance">0</div>
+                <div id="quotaStatus"></div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat-label">今日消耗 GP</div>
+                <div class="stat-value small" id="todayGPCost">0</div>
+                <div class="stat-sub">
+                    总计消耗: <span id="totalGPCost">0</span> GP
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="gpProgress"></div>
+                </div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat-label">平均数据</div>
+                <div class="stat-value small" id="avgGPPerTask">0</div>
+                <div class="stat-sub">
+                    GP/任务 • <span id="avgSizeMiB">0</span> MiB/任务
+                </div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat-label">总下载大小</div>
+                <div class="stat-value small" id="totalSizeMiB">0</div>
+                <div class="stat-sub">MiB</div>
+            </div>
+
+            <div class="stat-box">
+                <div class="stat-label">运行时间</div>
+                <div class="stat-value small" id="uptime">-</div>
+                <div class="stat-sub" id="startTime">-</div>
+            </div>
+        </div>
+
+        <div class="last-update">
+            最后更新: <span id="lastUpdate">从未</span>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
