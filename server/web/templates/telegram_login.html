@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .login-widget {
+            margin: 30px 0;
+            display: flex;
+            justify-content: center;
+        }
+        .footer {
+            margin-top: 30px;
+            color: #999;
+            font-size: 12px;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+            color: #667eea;
+            font-size: 14px;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            display: none;
+            color: #e74c3c;
+            background: #fadbd8;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .error.active {
+            display: block;
+        }
+        .success {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .success.active {
+            display: block;
+        }
+        .api-key-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+        }
+        .api-key-text {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+            word-break: break-all;
+            user-select: all;
+        }
+        .copy-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .copy-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+        .copy-btn.copied {
+            background: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Telegram Login</h1>
+        <p class="subtitle">Sign in with your Telegram account</p>
+
+        <div class="login-widget">
+            <script async src="https://telegram.org/js/telegram-widget.js?22"
+                    data-telegram-login="{{.BotUsername}}"
+                    data-size="large"
+                    data-onauth="onTelegramAuth(user)"
+                    data-request-access="write"></script>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Authenticating...</p>
+        </div>
+
+        <div class="error" id="error">
+            Authentication failed. Please try again.
+        </div>
+
+        <div class="success" id="success">
+            <div>🎉 Login successful!</div>
+            <div class="api-key-container">
+                <div class="api-key-text" id="apiKeyText"></div>
+                <button class="copy-btn" id="copyBtn" onclick="copyApiKey()">Copy</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            Secure authentication via Telegram
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // Parse URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect_url');
+        const paramName = urlParams.get('param_name') || 'start';
+
+        async function onTelegramAuth(user) {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+
+            loadingEl.classList.add('active');
+            errorEl.classList.remove('active');
+
+            try {
+                // Build callback URL with query parameters
+                const callbackUrl = new URL('/auth/telegram/callback', window.location.origin);
+                if (redirectUrl) callbackUrl.searchParams.set('redirect_url', redirectUrl);
+                if (paramName) callbackUrl.searchParams.set('param_name', paramName);
+
+                // Send ONLY Telegram auth data in JSON body (for signature verification)
+                const response = await fetch(callbackUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(user)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Authentication failed');
+                }
+
+                const data = await response.json();
+
+                // Redirect to third-party URL with API key
+                if (redirectUrl && data.api_key) {
+                    const finalUrl = new URL(redirectUrl);
+                    finalUrl.searchParams.set(paramName, data.api_key);
+                    window.location.href = finalUrl.toString();
+                } else if (data.api_key) {
+                    // Show success message with API key
+                    showSuccess(data.api_key);
+                }
+            } catch (error) {
+                console.error('Authentication error:', error);
+                loadingEl.classList.remove('active');
+                errorEl.classList.add('active');
+                errorEl.textContent = error.message || 'Authentication failed. Please try again.';
+            }
+        }
+
+        function showSuccess(apiKey) {
+            const loadingEl = document.getElementById('loading');
+            const successEl = document.getElementById('success');
+            const apiKeyTextEl = document.getElementById('apiKeyText');
+
+            loadingEl.classList.remove('active');
+            apiKeyTextEl.textContent = apiKey;
+            successEl.classList.add('active');
+
+            // Store API key for copy function
+            window.currentApiKey = apiKey;
+        }
+
+        async function copyApiKey() {
+            const copyBtn = document.getElementById('copyBtn');
+            const apiKey = window.currentApiKey;
+
+            if (!apiKey) return;
+
+            try {
+                await navigator.clipboard.writeText(apiKey);
+
+                // Visual feedback
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✓ Copied!';
+                copyBtn.classList.add('copied');
+
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = apiKey;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.select();
+
+                try {
+                    document.execCommand('copy');
+                    copyBtn.textContent = '✓ Copied!';
+                    copyBtn.classList.add('copied');
+
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                } catch (err) {
+                    copyBtn.textContent = '✗ Failed';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy';
+                    }, 2000);
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
