@@ -147,7 +147,16 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramData)
+	telegramIDFloat, ok := telegramData["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid telegram data: missing id"})
+		return
+	}
+	telegramID := int64(telegramIDFloat)
+	firstName, _ := telegramData["first_name"].(string)
+	lastName, _ := telegramData["last_name"].(string)
+
+	user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramID, firstName, lastName)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "telegram authentication failed"})
 		return

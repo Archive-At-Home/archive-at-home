@@ -97,13 +97,7 @@ func (s *userService) LoginEmail(ctx context.Context, email, password string) (*
 }
 
 // LoginTelegram authenticates via Telegram OAuth.
-func (s *userService) LoginTelegram(ctx context.Context, telegramData map[string]any) (*User, error) {
-	// Extract telegram ID
-	telegramIDFloat, ok := telegramData["id"].(float64)
-	if !ok {
-		return nil, errors.New("invalid telegram data: missing id")
-	}
-	telegramID := int64(telegramIDFloat)
+func (s *userService) LoginTelegram(ctx context.Context, telegramID int64, firstName, lastName string) (*User, error) {
 
 	// Try to find existing user
 	var user User
@@ -123,16 +117,13 @@ func (s *userService) LoginTelegram(ctx context.Context, telegramData map[string
 		return nil, err
 	}
 
-	// Extract optional fields
-	nickname := ""
-	if firstName, ok := telegramData["first_name"].(string); ok {
-		nickname = firstName
-	}
-	if lastName, ok := telegramData["last_name"].(string); ok {
+	nickname := strings.TrimSpace(firstName)
+	trimmedLastName := strings.TrimSpace(lastName)
+	if trimmedLastName != "" {
 		if nickname != "" {
 			nickname += " "
 		}
-		nickname += lastName
+		nickname += trimmedLastName
 	}
 
 	user = User{
