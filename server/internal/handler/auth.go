@@ -39,8 +39,7 @@ type RegisterRequest struct {
 }
 
 type AuthResponse struct {
-	User   *auth.User `json:"user"`
-	APIKey string     `json:"api_key"`
+	APIKey string `json:"api_key"`
 }
 
 // Register handles user registration via email.
@@ -62,7 +61,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, AuthResponse{
-		User:   user,
 		APIKey: user.APIKey,
 	})
 }
@@ -95,7 +93,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, AuthResponse{
-		User:   user,
 		APIKey: user.APIKey,
 	})
 }
@@ -158,7 +155,6 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 
 	// Return API key for client use (redirect handled by frontend)
 	c.JSON(http.StatusOK, AuthResponse{
-		User:   user,
 		APIKey: user.APIKey,
 	})
 }
