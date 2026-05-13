@@ -1,20 +1,14 @@
 package handler
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
-	"sort"
-	"strings"
-	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/auth"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/config"
 	"github.com/Archive-At-Home/archive-at-home/server/web"
 	"github.com/gin-gonic/gin"
+	widget "github.com/wesleym/telegramwidget"
 )
 
 // AuthHandler handles authentication endpoints.
@@ -130,35 +124,24 @@ func (h *AuthHandler) TelegramLoginPage(c *gin.Context) {
 // JSON body contains only Telegram official auth data for signature verification.
 // Redirect logic is handled entirely by the frontend JavaScript.
 func (h *AuthHandler) TelegramCallback(c *gin.Context) {
-	var telegramData map[string]any
-	if err := c.ShouldBindJSON(&telegramData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate Telegram auth data hash
 	if h.cfg.TelegramBotToken == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "telegram login not configured"})
 		return
 	}
 
-	if err := h.validateTelegramAuth(telegramData); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-
-	telegramIDFloat, ok := telegramData["id"].(float64)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid telegram data: missing id"})
-		return
-	}
-	telegramID := int64(telegramIDFloat)
-	firstName, _ := telegramData["first_name"].(string)
-	lastName, _ := telegramData["last_name"].(string)
-
-	user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramID, firstName, lastName)
+	telegramUser, err := widget.ConvertAndVerifyJSON(c.Request.Body, h.cfg.TelegramBotToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "telegram authentication failed"})
+		if errors.Is(err, widget.ErrInvalidHash) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid telegram auth data"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "malformed telegram auth data"})
+		}
+		return
+	}
+
+	user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramUser.ID, telegramUser.FirstName, telegramUser.LastName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "telegram authentication failed"})
 		return
 	}
 
@@ -166,72 +149,6 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 	c.JSON(http.StatusOK, AuthResponse{
 		APIKey: user.APIKey,
 	})
-}
-
-// validateTelegramAuth validates the Telegram Login Widget data.
-// See: https://core.telegram.org/widgets/login#checking-authorization
-func (h *AuthHandler) validateTelegramAuth(data map[string]any) error {
-	// Extract hash from data
-	hashValue, ok := data["hash"].(string)
-	if !ok || hashValue == "" {
-		return errors.New("missing hash")
-	}
-
-	// Check auth_date is not too old (allow 1 day)
-	authDateFloat, ok := data["auth_date"].(float64)
-	if !ok {
-		return errors.New("missing auth_date")
-	}
-	authDate := time.Unix(int64(authDateFloat), 0)
-	if time.Since(authDate) > 24*time.Hour {
-		return errors.New("auth data expired")
-	}
-
-	// Build data-check-string: sort keys, build "key=value" pairs, join with \n
-	var keys []string
-	for k := range data {
-		if k != "hash" {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-
-	var pairs []string
-	for _, k := range keys {
-		v := data[k]
-		var strVal string
-		switch val := v.(type) {
-		case string:
-			strVal = val
-		case float64:
-			// Handle both integer and float representations
-			if val == float64(int64(val)) {
-				strVal = fmt.Sprintf("%d", int64(val))
-			} else {
-				strVal = fmt.Sprintf("%v", val)
-			}
-		case bool:
-			strVal = fmt.Sprintf("%v", val)
-		default:
-			strVal = fmt.Sprintf("%v", val)
-		}
-		pairs = append(pairs, fmt.Sprintf("%s=%s", k, strVal))
-	}
-	dataCheckString := strings.Join(pairs, "\n")
-
-	// secret_key = SHA256(bot_token)
-	secretKey := sha256.Sum256([]byte(h.cfg.TelegramBotToken))
-
-	// hash = HMAC-SHA256(data_check_string, secret_key)
-	mac := hmac.New(sha256.New, secretKey[:])
-	mac.Write([]byte(dataCheckString))
-	expectedHash := hex.EncodeToString(mac.Sum(nil))
-
-	if !hmac.Equal([]byte(expectedHash), []byte(hashValue)) {
-		return errors.New("invalid hash")
-	}
-
-	return nil
 }
 
 // RegisterRoutes registers auth routes on the Gin engine.

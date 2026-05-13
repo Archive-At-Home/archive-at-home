@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/redis/go-redis/v9 v9.19.0
+	github.com/wesleym/telegramwidget v1.1.0
 	golang.org/x/crypto v0.51.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
