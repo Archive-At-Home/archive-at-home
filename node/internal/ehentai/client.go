@@ -114,7 +114,7 @@ func (c *Client) initTestGallery() error {
 
 // RefreshStatus updates the node's free quota and GP balance
 func (c *Client) RefreshStatus() error {
-	archiveURL := fmt.Sprintf("%s/archiver.php?gid=%s&token=%s", c.baseURL, c.testGID, c.testToken)
+	archiveURL := fmt.Sprintf("%s/archiver.php?gid=%s&token=%s", BaseURL, c.testGID, c.testToken)
 
 	resp, err := c.doRequest("GET", archiveURL, nil)
 	if err != nil {
