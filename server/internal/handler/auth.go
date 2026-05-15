@@ -3,11 +3,13 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/auth"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/config"
 	"github.com/Archive-At-Home/archive-at-home/server/web"
 	"github.com/gin-gonic/gin"
+	initdata "github.com/telegram-mini-apps/init-data-golang"
 	widget "github.com/wesleym/telegramwidget"
 )
 
@@ -123,8 +125,16 @@ func (h *AuthHandler) TelegramLoginPage(c *gin.Context) {
 // POST /auth/telegram/callback
 // ─────────────────────────────────────────────
 
+type TelegramInitDataRequest struct {
+	InitData string `json:"initData" binding:"required"`
+	BotID    int64  `json:"botId" binding:"required"`
+}
+
 // TelegramCallback handles Telegram OAuth login.
-// JSON body contains only Telegram official auth data for signature verification.
+// Query parameter:
+// - type: "widget" (default) for official Telegram widget, "miniapp" for miniapp initData
+// For widget: JSON body contains Telegram official auth data for signature verification.
+// For miniapp: JSON body contains initData and botId for miniapp authentication.
 // Redirect logic is handled entirely by the frontend JavaScript.
 func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 	if h.cfg.TelegramBotToken == "" {
@@ -132,27 +142,67 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 		return
 	}
 
-	telegramUser, err := widget.ConvertAndVerifyJSON(c.Request.Body, h.cfg.TelegramBotToken)
-	if err != nil {
-		if errors.Is(err, widget.ErrInvalidHash) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid telegram auth data"})
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "malformed telegram auth data"})
+	authType := c.DefaultQuery("type", "widget")
+
+	switch authType {
+	case "miniapp":
+		// Miniapp authentication with initData
+		var req TelegramInitDataRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
-		return
-	}
 
-	user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramUser.ID, telegramUser.FirstName, telegramUser.LastName)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "telegram authentication failed"})
-		return
-	}
+		// Validate initdata with 24-hour expiration
+		if err := initdata.ValidateThirdParty(req.InitData, req.BotID, 24*time.Hour); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid telegram initdata"})
+			return
+		}
 
-	// Return API key for client use (redirect handled by frontend)
-	c.JSON(http.StatusOK, AuthResponse{
-		User:   user,
-		APIKey: user.APIKey,
-	})
+		// Parse initdata to extract user information
+		data, err := initdata.Parse(req.InitData)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse initdata"})
+			return
+		}
+
+		// Use existing LoginTelegram with parsed user data
+		user, err := h.userSvc.LoginTelegram(c.Request.Context(), data.User.ID, data.User.FirstName, data.User.LastName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "telegram authentication failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, AuthResponse{
+			User:   user,
+			APIKey: user.APIKey,
+		})
+	case "widget":
+		// Official widget authentication
+		telegramUser, err := widget.ConvertAndVerifyJSON(c.Request.Body, h.cfg.TelegramBotToken)
+		if err != nil {
+			if errors.Is(err, widget.ErrInvalidHash) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid telegram auth data"})
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "malformed telegram auth data"})
+			}
+			return
+		}
+
+		user, err := h.userSvc.LoginTelegram(c.Request.Context(), telegramUser.ID, telegramUser.FirstName, telegramUser.LastName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "telegram authentication failed"})
+			return
+		}
+
+		// Return API key for client use (redirect handled by frontend)
+		c.JSON(http.StatusOK, AuthResponse{
+			User:   user,
+			APIKey: user.APIKey,
+		})
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid auth type"})
+	}
 }
 
 // RegisterRoutes registers auth routes on the Gin engine.

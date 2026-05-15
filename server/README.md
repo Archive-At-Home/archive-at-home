@@ -128,13 +128,26 @@ Telegram 第三方登录中转页面。
 **URL 参数:**
 - `redirect_url` (可选): 登录成功后跳转地址
 - `param_name` (可选): API Key 参数名，默认 `start`
+- `botId` (可选): Telegram Bot ID，用于 Mini App 登录
 
-**示例:**
+**标准 Telegram Widget 登录示例:**
 ```
 https://your-domain.com/auth/telegram/login?redirect_url=https://t.me/YourBot
 ```
 
 登录成功后跳转到：`https://t.me/YourBot?start=<api-key>`
+
+**Telegram Mini App 登录示例:**
+
+需要通过 Bot 的 Keyboard Button 打开此页面，`Telegram.WebApp.initData` 会自动在 Mini App 环境中可用。
+
+页面会自动检测 `Telegram.WebApp.initData` 并完成登录。
+
+```
+https://your-domain.com/auth/telegram/login?botId=YOUR_BOT_ID
+```
+
+登录成功后，token 将通过 `Telegram.WebApp.sendData(apiKey)` 发送给 Bot，随后页面自动关闭。
 
 ### POST /auth/telegram/callback
 

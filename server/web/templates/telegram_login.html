@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js?62"></script>
     <title>Telegram Login</title>
     <style>
         * {
@@ -167,11 +168,9 @@
 <body>
     <div class="container">
         <h1>🔐 Telegram Login</h1>
-        <p class="subtitle">Sign in with your Telegram account</p>
+        <p class="subtitle" id="subtitle">Sign in with your Telegram account</p>
 
-        <div class="login-widget">
-            <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="{{.BotUsername}}"
-                data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
+        <div class="login-widget" id="loginWidget">
         </div>
 
         <div class="loading" id="loading">
@@ -201,6 +200,77 @@
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUrl = urlParams.get('redirect_url');
         const paramName = urlParams.get('param_name') || 'start';
+        const botId = Number(urlParams.get('botId'));
+        const tgWebApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+        const isMiniApp = Boolean(tgWebApp && typeof tgWebApp.initData === 'string' && tgWebApp.initData.length > 0);
+
+        function setModeUI() {
+            const subtitleEl = document.getElementById('subtitle');
+            if (isMiniApp) {
+                subtitleEl.textContent = 'Authenticating from Telegram Mini App...';
+                return;
+            }
+
+            subtitleEl.textContent = 'Sign in with your Telegram account';
+            renderWidget();
+        }
+
+        function renderWidget() {
+            const widgetContainer = document.getElementById('loginWidget');
+            widgetContainer.innerHTML = '';
+
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = 'https://telegram.org/js/telegram-widget.js?22';
+            script.setAttribute('data-telegram-login', '{{.BotUsername}}');
+            script.setAttribute('data-size', 'large');
+            script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+            script.setAttribute('data-request-access', 'write');
+            widgetContainer.appendChild(script);
+        }
+
+        async function authenticateMiniApp() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+
+            if (!Number.isFinite(botId) || botId <= 0) {
+                errorEl.classList.add('active');
+                errorEl.textContent = 'Missing or invalid botId for Mini App authentication.';
+                return;
+            }
+
+            loadingEl.classList.add('active');
+            errorEl.classList.remove('active');
+
+            try {
+                const callbackUrl = new URL('/auth/telegram/callback', window.location.origin);
+                callbackUrl.searchParams.set('type', 'miniapp');
+
+                const response = await fetch(callbackUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        initData: tgWebApp.initData,
+                        botId: botId,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Authentication failed');
+                }
+
+                const data = await response.json();
+                await handleAuthSuccess(data.api_key, true);
+            } catch (error) {
+                console.error('Mini App authentication error:', error);
+                loadingEl.classList.remove('active');
+                errorEl.classList.add('active');
+                errorEl.textContent = error.message || 'Authentication failed. Please try again.';
+            }
+        }
 
         async function onTelegramAuth(user) {
             const loadingEl = document.getElementById('loading');
@@ -227,22 +297,33 @@
                 }
 
                 const data = await response.json();
-
-                // Redirect to third-party URL with API key
-                if (redirectUrl && data.api_key) {
-                    const finalUrl = new URL(redirectUrl);
-                    finalUrl.searchParams.set(paramName, data.api_key);
-                    window.location.href = finalUrl.toString();
-                } else if (data.api_key) {
-                    // Show success message with API key
-                    showSuccess(data.api_key);
-                }
+                await handleAuthSuccess(data.api_key, false);
             } catch (error) {
                 console.error('Authentication error:', error);
                 loadingEl.classList.remove('active');
                 errorEl.classList.add('active');
                 errorEl.textContent = error.message || 'Authentication failed. Please try again.';
             }
+        }
+
+        async function handleAuthSuccess(apiKey, isMiniApp) {
+            if (!apiKey) {
+                throw new Error('Authentication succeeded but API key is missing');
+            }
+
+            if (isMiniApp && tgWebApp && typeof tgWebApp.sendData === 'function') {
+                tgWebApp.sendData(apiKey);
+                return; // Page will auto-close after sendData
+            }
+
+            if (!isMiniApp && redirectUrl) {
+                const finalUrl = new URL(redirectUrl);
+                finalUrl.searchParams.set(paramName, apiKey);
+                window.location.href = finalUrl.toString();
+                return;
+            }
+
+            showSuccess(apiKey);
         }
 
         function showSuccess(apiKey) {
@@ -256,6 +337,11 @@
 
             // Store API key for copy function
             window.currentApiKey = apiKey;
+        }
+
+        setModeUI();
+        if (isMiniApp) {
+            authenticateMiniApp();
         }
 
         async function copyApiKey() {
