@@ -41,8 +41,7 @@ type UserService interface {
 	LoginEmail(ctx context.Context, email, password string) (*User, error)
 
 	// LoginTelegram authenticates via Telegram OAuth callback data.
-	// Concrete parameter type TBD — depends on Telegram Bot API docs at implementation time.
-	LoginTelegram(ctx context.Context, telegramData map[string]any) (*User, error)
+	LoginTelegram(ctx context.Context, telegramID int64, firstName, lastName string) (*User, error)
 
 	// GetByAPIKey looks up a user by their API key.
 	// This is the main method used by the auth middleware on every request.
