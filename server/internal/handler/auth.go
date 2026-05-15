@@ -34,11 +34,6 @@ type RegisterRequest struct {
 	Nickname string `json:"nickname"`
 }
 
-type AuthResponse struct {
-	User   *auth.User `json:"user"`
-	APIKey string     `json:"api_key"`
-}
-
 // Register handles user registration via email.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
@@ -57,10 +52,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, AuthResponse{
-		User:   user,
-		APIKey: user.APIKey,
-	})
+	c.JSON(http.StatusCreated, user)
 }
 
 // ─────────────────────────────────────────────
@@ -90,10 +82,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, AuthResponse{
-		User:   user,
-		APIKey: user.APIKey,
-	})
+	c.JSON(http.StatusOK, user)
 }
 
 // ─────────────────────────────────────────────
@@ -173,10 +162,7 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusOK, AuthResponse{
-			User:   user,
-			APIKey: user.APIKey,
-		})
+		c.JSON(http.StatusOK, user)
 	case "widget":
 		// Official widget authentication
 		telegramUser, err := widget.ConvertAndVerifyJSON(c.Request.Body, h.cfg.TelegramBotToken)
@@ -196,10 +182,7 @@ func (h *AuthHandler) TelegramCallback(c *gin.Context) {
 		}
 
 		// Return API key for client use (redirect handled by frontend)
-		c.JSON(http.StatusOK, AuthResponse{
-			User:   user,
-			APIKey: user.APIKey,
-		})
+		c.JSON(http.StatusOK, user)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid auth type"})
 	}

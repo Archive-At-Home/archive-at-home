@@ -76,17 +76,10 @@ Authorization: Bearer <ADMIN_TOKEN>
 **响应:**
 ```json
 {
-  "user": {
-    "id": "abc123",
-    "email": "user@example.com",
-    "nickname": "用户昵称",
-    "provider": "email",
-    "api_key": "sk-xxxxxxxxxxxx",
-    "status": "active",
-    "last_checkin_at": "2026-02-10T08:00:00Z",
-    "created_at": "2026-02-11T00:00:00Z",
-    "updated_at": "2026-02-11T00:00:00Z"
-  },
+  "id": "abc123",
+  "email": "user@example.com",
+  "nickname": "用户昵称",
+  "provider": "email",
   "api_key": "sk-xxxxxxxxxxxx"
 }
 ```
@@ -106,17 +99,10 @@ Authorization: Bearer <ADMIN_TOKEN>
 **响应:**
 ```json
 {
-  "user": {
-    "id": "abc123",
-    "email": "user@example.com",
-    "nickname": "用户昵称",
-    "provider": "email",
-    "api_key": "sk-xxxxxxxxxxxx",
-    "status": "active",
-    "last_checkin_at": "2026-02-10T08:00:00Z",
-    "created_at": "2026-02-11T00:00:00Z",
-    "updated_at": "2026-02-11T00:00:00Z"
-  },
+  "id": "abc123",
+  "email": "user@example.com",
+  "nickname": "用户昵称",
+  "provider": "email",
   "api_key": "sk-xxxxxxxxxxxx"
 }
 ```
