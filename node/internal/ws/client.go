@@ -197,6 +197,17 @@ func (c *Client) SendTaskResult(result *model.TaskResult) error {
 	})
 }
 
+// SendNodeStatus reports the current node status to the server.
+func (c *Client) SendNodeStatus(haveFreeQuota bool, gpBalance int) error {
+	return c.sendJSON(model.Envelope{
+		Type: model.MsgTypeNodeStatus,
+		Payload: model.NodeStatus{
+			HaveFreeQuota: haveFreeQuota,
+			GPBalance:     gpBalance,
+		},
+	})
+}
+
 func (c *Client) sendJSON(v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {

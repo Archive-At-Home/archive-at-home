@@ -46,7 +46,7 @@ func (h *AdminHandler) RegisterRoutes(r *gin.Engine, adminMw gin.HandlerFunc) {
 func (h *AdminHandler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"node_count": h.hub.NodeCount(),
-		"node_ids":   h.hub.NodeIDs(),
+		"nodes":      h.hub.NodeInfoSnapshot(),
 	})
 }
 

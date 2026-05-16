@@ -37,6 +37,7 @@ const (
 	// Node → Server
 	MsgTypeFetchTask  MsgType = "FETCH_TASK"
 	MsgTypeTaskResult MsgType = "TASK_RESULT"
+	MsgTypeNodeStatus MsgType = "NODE_STATUS"
 
 	// Server → Node (response to FETCH)
 	MsgTypeTaskAssigned MsgType = "TASK_ASSIGNED"
@@ -77,6 +78,12 @@ type TaskResult struct {
 	ActualGP   int    `json:"actual_gp"` // actual GP consumed during parsing
 	ArchiveURL string `json:"archive_url,omitempty"`
 	Error      string `json:"error,omitempty"`
+}
+
+// NodeStatus is periodically reported by a node to the server.
+type NodeStatus struct {
+	HaveFreeQuota bool `json:"have_free_quota"`
+	GPBalance     int  `json:"gp_balance"`
 }
 
 // ─────────────────────────────────────────────

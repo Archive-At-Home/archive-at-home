@@ -311,7 +311,7 @@ func (n *Node) logf(format string, args ...any) {
 	log.Printf("[node] "+format, args...)
 }
 
-// refreshAndLogStatus refreshes EH status.
+// refreshAndLogStatus refreshes EH status and reports it to the server.
 func (n *Node) refreshAndLogStatus(label string) error {
 	if err := n.ehClient.RefreshStatus(); err != nil {
 		n.logf("%s status refresh failed: %v", label, err)
@@ -319,5 +319,8 @@ func (n *Node) refreshAndLogStatus(label string) error {
 	}
 	haveFree, gpBalance := n.ehClient.GetStatus()
 	n.logf("status %s: haveFreeQuota=%v, gpBalance=%d", label, haveFree, gpBalance)
+	if err := n.wsClient.SendNodeStatus(haveFree, gpBalance); err != nil {
+		n.logf("failed to send node status: %v", err)
+	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/model"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/scheduler"
@@ -89,6 +90,12 @@ func (w *Waiter[T]) Notify(traceID string, value T) {
 // Hub: manages all connected worker nodes
 // ─────────────────────────────────────────────
 
+// NodeInfo holds the last reported status for a connected node.
+type NodeInfo struct {
+	model.NodeStatus
+	ReportedAt time.Time `json:"reported_at"`
+}
+
 // Hub maintains the set of active WebSocket clients and
 // broadcasts task announcements to all of them.
 type Hub struct {
@@ -137,15 +144,16 @@ func (h *Hub) NodeCount() int {
 	return len(h.clients)
 }
 
-// NodeIDs returns the IDs of all currently connected nodes.
-func (h *Hub) NodeIDs() []string {
+// NodeInfoSnapshot returns the last reported status for all connected nodes.
+func (h *Hub) NodeInfoSnapshot() map[string]NodeInfo {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	ids := make([]string, 0, len(h.clients))
-	for id := range h.clients {
-		ids = append(ids, id)
+	snap := make(map[string]NodeInfo, len(h.clients))
+	for id, c := range h.clients {
+		s, at := c.StatusSnapshot()
+		snap[id] = NodeInfo{NodeStatus: s, ReportedAt: at}
 	}
-	return ids
+	return snap
 }
 
 // BroadcastTaskAnnouncement sends a task announcement to all connected nodes.

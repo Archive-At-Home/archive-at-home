@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/model"
@@ -29,10 +30,20 @@ const (
 
 // Client represents a single WebSocket connection from a worker node.
 type Client struct {
-	NodeID string
-	conn   *websocket.Conn
-	hub    *Hub
-	send   chan []byte
+	NodeID   string
+	conn     *websocket.Conn
+	hub      *Hub
+	send     chan []byte
+	statusMu sync.Mutex
+	status   model.NodeStatus
+	statusAt time.Time
+}
+
+// StatusSnapshot returns a copy of the node's last reported status and when it was received.
+func (c *Client) StatusSnapshot() (model.NodeStatus, time.Time) {
+	c.statusMu.Lock()
+	defer c.statusMu.Unlock()
+	return c.status, c.statusAt
 }
 
 // NewClient wraps a WebSocket connection.
@@ -115,6 +126,17 @@ func (c *Client) handleMessage(ctx context.Context, raw []byte) {
 		}
 		res.NodeID = c.NodeID
 		c.hub.HandleTaskResult(ctx, &res)
+
+	case model.MsgTypeNodeStatus:
+		var status model.NodeStatus
+		if err := json.Unmarshal(env.Payload, &status); err != nil {
+			log.Printf("[ws] node %s: bad NODE_STATUS payload: %v", c.NodeID, err)
+			return
+		}
+		c.statusMu.Lock()
+		c.status = status
+		c.statusAt = time.Now()
+		c.statusMu.Unlock()
 
 	default:
 		log.Printf("[ws] node %s: unknown message type: %s", c.NodeID, env.Type)
