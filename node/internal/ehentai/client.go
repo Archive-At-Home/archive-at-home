@@ -120,6 +120,19 @@ func (c *Client) RefreshStatus() error {
 	if err != nil {
 		return err
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		resp.Body.Close()
+
+		if err := c.initTestGallery(); err != nil {
+			return fmt.Errorf("refresh test gallery on 404 failed: %w", err)
+		}
+
+		archiveURL = fmt.Sprintf("%s/archiver.php?gid=%s&token=%s", BaseURL, c.testGID, c.testToken)
+		resp, err = c.doRequest("GET", archiveURL, nil)
+		if err != nil {
+			return err
+		}
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
