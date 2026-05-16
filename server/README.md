@@ -155,9 +155,9 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "provider": "email",
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
+    "last_used_at": "2026-02-11T09:12:00Z",
     "last_checkin_at": "2026-02-10T08:00:00Z",
-    "created_at": "2026-02-11T00:00:00Z",
-    "updated_at": "2026-02-11T00:00:00Z"
+    "created_at": "2026-02-11T00:00:00Z"
   },
   "balance": 900
 }
@@ -253,9 +253,9 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "provider": "email",
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
+    "last_used_at": "2026-02-11T09:12:00Z",
     "last_checkin_at": "2026-02-10T08:00:00Z",
-    "created_at": "2026-02-11T00:00:00Z",
-    "updated_at": "2026-02-11T00:00:00Z"
+    "created_at": "2026-02-11T00:00:00Z"
   },
   "balance": 900
 }
