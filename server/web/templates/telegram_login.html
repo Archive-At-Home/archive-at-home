@@ -263,7 +263,7 @@
                 }
 
                 const data = await response.json();
-                await handleAuthSuccess(data.api_key, true);
+                await handleAuthSuccess(data.api_key);
             } catch (error) {
                 console.error('Mini App authentication error:', error);
                 loadingEl.classList.remove('active');
@@ -297,7 +297,7 @@
                 }
 
                 const data = await response.json();
-                await handleAuthSuccess(data.api_key, false);
+                await handleAuthSuccess(data.api_key);
             } catch (error) {
                 console.error('Authentication error:', error);
                 loadingEl.classList.remove('active');
@@ -306,17 +306,12 @@
             }
         }
 
-        async function handleAuthSuccess(apiKey, isMiniApp) {
+        async function handleAuthSuccess(apiKey) {
             if (!apiKey) {
                 throw new Error('Authentication succeeded but API key is missing');
             }
 
-            if (isMiniApp && tgWebApp && typeof tgWebApp.sendData === 'function') {
-                tgWebApp.sendData(apiKey);
-                return; // Page will auto-close after sendData
-            }
-
-            if (!isMiniApp && redirectUrl) {
+            if (redirectUrl) {
                 const finalUrl = new URL(redirectUrl);
                 finalUrl.searchParams.set(paramName, apiKey);
                 window.location.href = finalUrl.toString();
