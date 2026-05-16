@@ -14,8 +14,7 @@ import (
 
 // Account represents a user's GP balance.
 type Account struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	UserID    string    `json:"user_id" gorm:"uniqueIndex"`
+	UserID    string    `json:"user_id" gorm:"primaryKey"`
 	Balance   int64     `json:"balance"` // current GP balance (can be negative if deferred billing)
 	Frozen    int64     `json:"frozen"`  // GP reserved by in-flight tasks
 	UpdatedAt time.Time `json:"updated_at"`
