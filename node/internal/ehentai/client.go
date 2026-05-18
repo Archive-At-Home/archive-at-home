@@ -88,7 +88,7 @@ func (c *Client) doRequest(method, url string, body io.Reader) (*http.Response, 
 }
 
 func (c *Client) initTestGallery() error {
-	resp, err := c.doRequest("GET", c.baseURL, nil)
+	resp, err := c.doRequest("GET", BaseURL, nil)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (c *Client) initTestGallery() error {
 	}
 
 	// Extract a gallery ID from the homepage
-	re := regexp.MustCompile(regexp.QuoteMeta(c.baseURL) + `/g/(\d+)/([0-9a-f]{10})`)
+	re := regexp.MustCompile(regexp.QuoteMeta(BaseURL) + `/g/(\d+)/([0-9a-f]{10})`)
 	matches := re.FindStringSubmatch(string(body))
 	if len(matches) < 3 {
 		return fmt.Errorf("no gallery found on homepage")
