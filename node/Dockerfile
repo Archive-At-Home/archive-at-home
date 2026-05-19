@@ -1,18 +1,10 @@
-FROM golang:1.25-alpine AS builder
-
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-RUN go build -o /node ./cmd/node
-
-FROM alpine:3.19
+FROM alpine
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /node /node
+ARG TARGETARCH
 
-# Create data directory for SQLite
+COPY bin/${TARGETARCH}/archive-at-home-node /node
+
 RUN mkdir -p /data
 
 WORKDIR /
