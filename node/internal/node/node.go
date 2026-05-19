@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -44,6 +45,7 @@ type Node struct {
 	dashboard      *dashboard.Dashboard
 	baseBalanceGP  int           // Base balance for delay calculation
 	baseClaimDelay time.Duration // Base claim delay for low balance nodes
+	FatalCh        chan struct{} // Closed when a fatal error (e.g. igneous revoked) occurs
 }
 
 // NewNode creates a new worker node
@@ -58,6 +60,7 @@ func NewNode(nodeID, signature, serverURL string, ehClient *ehentai.Client, db *
 		dashboard:      dashboard.NewDashboard(nodeID, serverURL, maxGPCost),
 		baseBalanceGP:  baseBalanceGP,
 		baseClaimDelay: time.Duration(baseClaimDelaySec) * time.Second,
+		FatalCh:        make(chan struct{}),
 	}
 }
 
@@ -249,10 +252,14 @@ func (n *Node) processTask(task *model.TaskAssignment) {
 		ActualGP: actualGP,
 	}
 
+	fatal := false
 	if err != nil {
 		n.logf("task %s failed: %v", task.TraceID, err)
 		result.Success = false
 		result.Error = err.Error()
+		if errors.Is(err, ehentai.ErrIgneousRevoked) {
+			fatal = true
+		}
 	} else {
 		n.logf("task %s completed: archiveURL=%s, actualGP=%d, size=%.1fMiB",
 			task.TraceID, archiveURL, actualGP, sizeMiB)
@@ -276,6 +283,12 @@ func (n *Node) processTask(task *model.TaskAssignment) {
 	// Send result to server
 	if err := n.wsClient.SendTaskResult(result); err != nil {
 		n.logf("failed to send task result: %v", err)
+	}
+
+	if fatal {
+		n.logf("exhentai access revoked, initiating shutdown")
+		close(n.FatalCh)
+		return
 	}
 
 	// Refresh status after task completion

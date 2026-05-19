@@ -41,7 +41,6 @@ func main() {
 	// Create EHentai client
 	ehClient, err := ehentai.NewClient(
 		cfg.EHentai.Cookie,
-		cfg.EHentai.UseExhentai,
 		cfg.EHentai.MaxGPCost,
 		db,
 	)
@@ -82,8 +81,12 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	<-sigChan
-	log.Printf("Shutting down...")
+	select {
+	case <-sigChan:
+		log.Printf("Shutting down...")
+	case <-n.FatalCh:
+		log.Printf("[node] exhentai access revoked, shutting down...")
+	}
 
 	cancel()
 	if err := n.Stop(); err != nil {

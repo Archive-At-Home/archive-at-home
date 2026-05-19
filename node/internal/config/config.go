@@ -19,9 +19,8 @@ type Config struct {
 	} `yaml:"server"`
 
 	EHentai struct {
-		Cookie      string `yaml:"cookie"`       // EHentai cookie (ipb_member_id=xxx; ipb_pass_hash=xxx)
-		UseExhentai bool   `yaml:"use_exhentai"` // Whether to use ExHentai instead of E-Hentai
-		MaxGPCost   int    `yaml:"max_gp_cost"`  // Maximum GP cost per day (-1 for unlimited)
+		Cookie    string `yaml:"cookie"`      // EHentai cookie (ipb_member_id=xxx; ipb_pass_hash=xxx; optionally igneous=xxx)
+		MaxGPCost int    `yaml:"max_gp_cost"` // Maximum GP cost per day (-1 for unlimited)
 	} `yaml:"ehentai"`
 
 	Task struct {

@@ -15,13 +15,9 @@ server:
 
 ehentai:
   # EHentai cookie for authentication
-  # Format: ipb_member_id=XXXXX; ipb_pass_hash=XXXXXXXXX
+  # Format: ipb_member_id=XXXXX; ipb_pass_hash=XXXXXXXXX; igneous=XXXXXXXXX (Optional)
   # You can get this from your browser's developer tools when logged into e-hentai.org
   cookie: ""
-
-  # Whether to use ExHentai instead of E-Hentai
-  # Note: ExHentai requires additional setup and access
-  use_exhentai: false
 
   # Maximum GP cost per day
   # Set to -1 for unlimited

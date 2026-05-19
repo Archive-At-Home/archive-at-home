@@ -3,7 +3,9 @@ package ehentai
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -31,12 +33,16 @@ var (
 	numberPattern        = regexp.MustCompile(`[\d,]+`)
 	estimatedSizePattern = regexp.MustCompile(`Estimated\s*Size:.*?<strong>(.*?)</strong>`)
 	redirectURLPattern   = regexp.MustCompile(`document\.location = "(.*?)";`)
+
+	exURL, _ = url.Parse(ExBaseURL)
+
+	ErrIgneousRevoked = fmt.Errorf("exhentai igneous cookie has become 'mystery' — access revoked")
 )
 
 // Client handles EHentai API calls
 type Client struct {
 	baseURL    string
-	cookie     string
+	jar        *cookiejar.Jar
 	httpClient *http.Client
 	db         *database.DB
 
@@ -51,27 +57,125 @@ type Client struct {
 	testToken string
 }
 
-// NewClient creates a new EHentai client
-func NewClient(cookie string, useExhentai bool, maxGPCost int, db *database.DB) (*Client, error) {
-	baseURL := BaseURL
-	if useExhentai {
-		baseURL = ExBaseURL
+// NewClient creates a new EHentai client, auto-detecting the correct base URL.
+//
+// Detection flow:
+//  1. HEAD e-hentai.org/home.php with ipb_member_id + ipb_pass_hash; if "star"
+//     cookie is present, use e-hentai.org.
+//  2. HEAD exhentai.org with the same two cookies; if "igneous" is present and
+//     not "mystery", use exhentai.org.
+//  3. If igneous is "mystery" or absent, check whether the cookie string already
+//     contains an igneous value. If not, return an error.
+//  4. HEAD exhentai.org with all three cookies; if the resulting igneous
+//     becomes "mystery", return an error.
+//  5. Otherwise use exhentai.org.
+//
+// During normal operation on exhentai, if igneous turns into "mystery"
+// ErrIgneousRevoked is returned through doRequest. The caller should
+// trigger a graceful shutdown when this error is received — re-acquiring igneous has
+// already been tried (or the value was manually configured).
+func NewClient(cookieStr string, maxGPCost int, db *database.DB) (*Client, error) {
+	var memberID, passHash, configIgneous string
+
+	configCookies, _ := http.ParseCookie(cookieStr)
+	for _, c := range configCookies {
+		switch c.Name {
+		case "ipb_member_id":
+			memberID = c.Value
+		case "ipb_pass_hash":
+			passHash = c.Value
+		case "igneous":
+			configIgneous = c.Value
+		}
+	}
+
+	if memberID == "" || passHash == "" {
+		return nil, fmt.Errorf("cookie must contain ipb_member_id and ipb_pass_hash")
+	}
+
+	baseURL, jar, err := detectBaseURL(memberID, passHash, configIgneous)
+	if err != nil {
+		return nil, err
 	}
 
 	c := &Client{
-		baseURL:    baseURL,
-		cookie:     cookie,
-		maxGPCost:  maxGPCost,
-		httpClient: &http.Client{Timeout: HTTPTimeout},
-		db:         db,
+		baseURL: baseURL,
+		jar:     jar,
+		httpClient: &http.Client{
+			Jar:     jar,
+			Timeout: HTTPTimeout,
+		},
+		db:        db,
+		maxGPCost: maxGPCost,
 	}
 
-	// Fetch a test gallery ID for status checking
 	if err := c.initTestGallery(); err != nil {
 		return nil, fmt.Errorf("init test gallery failed: %w", err)
 	}
 
 	return c, nil
+}
+
+func detectBaseURL(memberID, passHash, configIgneous string) (string, *cookiejar.Jar, error) {
+	eURL, _ := url.Parse(BaseURL)
+	homeURL := BaseURL + "/home.php"
+
+	authCookies := []*http.Cookie{
+		{Name: "ipb_member_id", Value: memberID},
+		{Name: "ipb_pass_hash", Value: passHash},
+	}
+
+	// Step 1: try e-hentai.org — star cookie indicates donor access
+	if jar := probe(eURL, homeURL, "star", authCookies); jar != nil {
+		log.Print("detected e-hentai.org (star cookie found)")
+		return BaseURL, jar, nil
+	}
+
+	// Step 2: try exhentai.org with only ipb_member_id + ipb_pass_hash
+	if jar := probe(exURL, ExBaseURL, "igneous", authCookies); jar != nil {
+		log.Print("detected exhentai.org (igneous acquired automatically)")
+		// exhentai.org doesn't expose balance; RefreshStatus hits e-hentai.org
+		jar.SetCookies(eURL, authCookies)
+		return ExBaseURL, jar, nil
+	}
+
+	// Step 3: auto-detection failed — check for manually configured igneous
+	if configIgneous == "" {
+		return "", nil, fmt.Errorf("exhentai access requires an igneous cookie but none was found in the cookie config")
+	}
+
+	// Step 4: retry exhentai with the manually configured igneous
+	allCookies := append(authCookies, &http.Cookie{Name: "igneous", Value: configIgneous})
+	jar := probe(exURL, ExBaseURL, "igneous", allCookies)
+	if jar == nil {
+		return "", nil, fmt.Errorf("the igneous cookie provided in the config is invalid (exhentai returned 'mystery')")
+	}
+	log.Print("detected exhentai.org (using configured igneous)")
+	jar.SetCookies(eURL, authCookies) // same reason as Step 2
+	return ExBaseURL, jar, nil
+}
+
+// probe sends a HEAD request to headURL with the given cookies. If the
+// response contains a cookie named checkName with a non-empty, non-"mystery"
+// value, it returns the temp jar (which holds all cookies from the probe).
+// On failure returns nil.
+func probe(jarURL *url.URL, headURL, checkName string, cookies []*http.Cookie) *cookiejar.Jar {
+	tempJar, _ := cookiejar.New(nil)
+	tempJar.SetCookies(jarURL, cookies)
+
+	client := &http.Client{Jar: tempJar, Timeout: HTTPTimeout}
+	resp, err := client.Head(headURL)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	for _, c := range tempJar.Cookies(jarURL) {
+		if c.Name == checkName && c.Value != "" && c.Value != "mystery" {
+			return tempJar
+		}
+	}
+	return nil
 }
 
 // doRequest performs an HTTP request with cookie authentication
@@ -80,11 +184,34 @@ func (c *Client) doRequest(method, url string, body io.Reader) (*http.Response, 
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Cookie", c.cookie)
 	if method == "POST" {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	return c.httpClient.Do(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Monitor igneous on exhentai — if it flips to "mystery" the
+	// access has been revoked and cannot be recovered automatically.
+	if strings.HasPrefix(url, ExBaseURL) {
+		if err := c.checkIgneous(); err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
+
+func (c *Client) checkIgneous() error {
+	for _, ck := range c.jar.Cookies(exURL) {
+		if ck.Name == "igneous" && ck.Value == "mystery" {
+			return ErrIgneousRevoked
+		}
+	}
+	return nil
 }
 
 func (c *Client) initTestGallery() error {
@@ -99,7 +226,6 @@ func (c *Client) initTestGallery() error {
 		return err
 	}
 
-	// Extract a gallery ID from the homepage
 	re := regexp.MustCompile(regexp.QuoteMeta(BaseURL) + `/g/(\d+)/([0-9a-f]{10})`)
 	matches := re.FindStringSubmatch(string(body))
 	if len(matches) < 3 {

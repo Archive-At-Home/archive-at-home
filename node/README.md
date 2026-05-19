@@ -50,8 +50,7 @@ node:
 
 # E-Hentai 配置
 ehentai:
-  cookie: "your-exhentai-cookie"  # ExHentai Cookie
-  use_exhentai: true              # 是否使用 exhentai.org
+  cookie: "your-ehentai-cookie"   # E-Hentai Cookie
   max_gp_cost: -1                 # 每日 GP 上限（-1 表示不限制）
 
 # 任务策略配置
@@ -111,9 +110,9 @@ archive-at-home-node.exe
 ### E-Hentai 配置
 
 - `cookie`: E-Hentai/ExHentai 的完整 Cookie 字符串
-  - 登录 exhentai.org 后，从浏览器复制完整 Cookie
-  - 至少需要包含 `ipb_member_id` 和 `ipb_pass_hash`
-- `use_exhentai`: 是否使用 exhentai.org（推荐 true，访问受限画廊）
+  - 登录 e-hentai.org 后从浏览器复制，至少包含 `ipb_member_id` 和 `ipb_pass_hash`
+  - 系统自动选择可用站点，无需手动指定
+  - 对于非捐赠用户，若系统无法自动获取 igneous，则需补充 `igneous=xxx`
 - `max_gp_cost`: 每日 GP 消耗上限（`-1` 表示不限制）
 
 ### 任务策略配置
