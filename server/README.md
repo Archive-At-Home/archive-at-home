@@ -153,6 +153,7 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "email": "user@example.com",
     "nickname": "用户昵称",
     "provider": "email",
+    "telegram_id": 1234567890,
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
     "last_used_at": "2026-02-11T09:12:00Z",
@@ -203,8 +204,8 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 **请求体:**
 ```json
 {
-  "gallery_id": "2845710",
-  "gallery_key": "a1b2c3d4e5",
+  "gallery_id": "3858751",
+  "gallery_key": "d3de60e849",
   "force": false
 }
 ```
@@ -251,6 +252,7 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "email": "user@example.com",
     "nickname": "用户昵称",
     "provider": "email",
+    "telegram_id": 1234567890,
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
     "last_used_at": "2026-02-11T09:12:00Z",

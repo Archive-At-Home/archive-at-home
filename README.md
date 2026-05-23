@@ -49,7 +49,7 @@ curl -X POST http://localhost:8080/auth/register \
 curl -X POST http://localhost:8080/api/v1/parse \
   -H "Authorization: Bearer sk-xxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"gallery_id":"2845710","gallery_key":"a1b2c3d4e5"}'
+  -d '{"gallery_id":"3858751","gallery_key":"d3de60e849"}'
 ```
 
 完整 API 文档请参考 [server/README.md](server/README.md)

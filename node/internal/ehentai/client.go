@@ -33,6 +33,7 @@ var (
 	numberPattern        = regexp.MustCompile(`[\d,]+`)
 	estimatedSizePattern = regexp.MustCompile(`Estimated\s*Size:.*?<strong>(.*?)</strong>`)
 	redirectURLPattern   = regexp.MustCompile(`document\.location = "(.*?)";`)
+	homeGalleryPattern   = regexp.MustCompile(regexp.QuoteMeta(BaseURL) + `/g/(\d+)/([0-9a-f]{10})`)
 
 	exURL, _ = url.Parse(ExBaseURL)
 
@@ -226,8 +227,7 @@ func (c *Client) initTestGallery() error {
 		return err
 	}
 
-	re := regexp.MustCompile(regexp.QuoteMeta(BaseURL) + `/g/(\d+)/([0-9a-f]{10})`)
-	matches := re.FindStringSubmatch(string(body))
+	matches := homeGalleryPattern.FindStringSubmatch(string(body))
 	if len(matches) < 3 {
 		return fmt.Errorf("no gallery found on homepage")
 	}
@@ -326,10 +326,7 @@ func (c *Client) calculateAvailableBalance(totalGP, recentGPCost int) int {
 	}
 
 	// Calculate remaining daily budget
-	remaining := c.maxGPCost - recentGPCost
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(c.maxGPCost-recentGPCost, 0)
 
 	// Return the minimum of total GP and remaining budget
 	if totalGP < remaining {
@@ -416,7 +413,9 @@ func (c *Client) GetArchiveURL(gid, token string) (archiveURL string, actualGP i
 	invalidateData := url.Values{}
 	invalidateData.Set("invalidate_sessions", "1")
 	cleanupResp, cleanupErr := c.doRequest("POST", archiverURL, strings.NewReader(invalidateData.Encode()))
-	if cleanupErr == nil {
+	if cleanupErr != nil {
+		log.Printf("failed to invalidate sessions: %v", cleanupErr)
+	} else {
 		cleanupResp.Body.Close()
 	}
 

@@ -145,6 +145,7 @@ archive-at-home-node.exe
 |---------|------|---------|
 | `FETCH_TASK` | 抢占任务 | `{trace_id, node_id}` |
 | `TASK_RESULT` | 任务结果 | `{trace_id, node_id, success, actual_gp, archive_url, error}` |
+| `NODE_STATUS` | 节点状态汇报（周期性） | `{have_free_quota, gp_balance}` |
 
 ## 任务执行流程
 
@@ -168,7 +169,7 @@ node/
 
 **表结构**：
 - `parse_logs`: 解析记录
-  - `id`: 自增主键
+  - `id`: 文本主键（任务 `trace_id`）
   - `gid`: 画廊 ID
   - `token`: 画廊 token
   - `actual_gp`: 实际 GP 消耗
