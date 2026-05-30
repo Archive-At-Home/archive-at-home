@@ -199,7 +199,26 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 
 **核心接口** - 请求解析画廊的归档下载链接。
 
-**请求头:** `Authorization: Bearer sk-xxxxxxxxxxxx`
+**请求头:**
+- `Authorization: Bearer sk-xxxxxxxxxxxx` (必需)
+- `X-Client: <category>/<app>` (可选)
+
+`X-Client` 用于标记调用来源并写入任务日志：
+
+- **有效值**：按 `大类/应用标识` 格式直接存入
+- **缺失或非法**：服务端根据 `User-Agent` 自动猜测，兜底为 `unknown/unknown`
+
+`X-Client` 推荐格式：`大类/应用标识`，例如：
+- `bot/tg-official`
+- `bot/qq-xxx-xxx`
+- `tampermonkey/aah-download-helper`
+- `app/jhentai`
+
+服务端规范化规则（不影响主流程）：
+- 转小写并去掉首尾空白
+- 仅接受 `a-z`、`0-9`、`-`、`_`、`.` 和单个 `/`
+- 最大长度 64
+- 不传或格式非法时自动从 `User-Agent` 识别
 
 **请求体:**
 ```json

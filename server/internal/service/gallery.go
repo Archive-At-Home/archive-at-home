@@ -121,7 +121,8 @@ func (s *GalleryService) setupCreatedTask(ctx context.Context, userID string, re
 //  3. Block (async→sync) until result arrives or timeout
 //
 // userID is injected by the API key middleware (not from the request body).
-func (s *GalleryService) ParseGallery(ctx context.Context, userID string, req *model.ParseRequest) (*model.ParseResponse, error) {
+// client identifies the request source (resolved from X-Client header or User-Agent).
+func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string, req *model.ParseRequest) (*model.ParseResponse, error) {
 	const compensationTimeout = 5 * time.Second
 	baseCtx := context.WithoutCancel(ctx)
 	workCtx, workCancel := context.WithTimeout(baseCtx, s.cfg.TaskWaitTimeout)
@@ -189,7 +190,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID string, req *m
 			}
 			// Log only if we reached the broadcast step.
 			if enteredBroadcastFlow {
-				s.store.LogTask(actualTraceID, userID, req.GalleryID, req.GalleryKey,
+				s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 					req.Force, freeTier, estimatedGP, claimedNodeID, false, err.Error(), 0)
 			}
 			return &model.ParseResponse{Error: err.Error()}, nil
@@ -207,7 +208,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID string, req *m
 		if !created {
 			return
 		}
-		s.store.LogTask(actualTraceID, userID, req.GalleryID, req.GalleryKey,
+		s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 			req.Force, freeTier, estimatedGP, claimedNodeID, success, failureReason, actualGP)
 	}
 

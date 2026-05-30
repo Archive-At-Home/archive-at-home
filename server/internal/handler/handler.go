@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/config"
 	appctx "github.com/Archive-At-Home/archive-at-home/server/internal/context"
@@ -65,6 +66,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, apiKeyMiddleware ...gin.HandlerF
 //	@Description  Checks cache (unless force=true), collapses duplicate requests,
 //	              dispatches to worker nodes and returns the parsed result.
 //	@Param        body  body  model.ParseRequest  true  "Parse request"
+//	@Param        X-Client  header  string  false  "Client identifier in format <category>/<app>, e.g. bot/tg-official"
 //	@Success      200   {object}  model.ParseResponse
 //	@Failure      400
 //	@Failure      500
@@ -78,14 +80,74 @@ func (h *Handler) ParseGallery(c *gin.Context) {
 
 	// UserID comes from the API key middleware, not the request body.
 	userID := appctx.GetUserID(c)
+	client := resolveClient(c.GetHeader("X-Client"), c.GetHeader("User-Agent"))
 
-	resp, err := h.svc.ParseGallery(c.Request.Context(), userID, &req)
+	resp, err := h.svc.ParseGallery(c.Request.Context(), userID, client, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// resolveClient returns a non-empty category/app string for task_logs.client.
+// X-Client (format: category/app) is used when present and valid.
+// Otherwise the User-Agent header is used to make a best-effort guess.
+func resolveClient(xClient, ua string) string {
+	if v := normalizeClientHeader(xClient); v != "" {
+		return v
+	}
+	cat, app := guessFromUA(ua)
+	return cat + "/" + app
+}
+
+func normalizeClientHeader(raw string) string {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	if v == "" {
+		return ""
+	}
+
+	if len(v) > 64 {
+		return ""
+	}
+
+	parts := strings.Split(v, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return ""
+	}
+
+	isValid := func(s string) bool {
+		for _, r := range s {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+				continue
+			}
+			return false
+		}
+		return true
+	}
+
+	if !isValid(parts[0]) || !isValid(parts[1]) {
+		return ""
+	}
+
+	return parts[0] + "/" + parts[1]
+}
+
+func guessFromUA(ua string) (category string, appName string) {
+	v := strings.ToLower(ua)
+
+	if strings.Contains(v, "python") {
+		return "script", "python"
+	}
+	if strings.Contains(v, "curl") {
+		return "script", "curl"
+	}
+	if strings.Contains(v, "mozilla") || strings.Contains(v, "safari") {
+		return "script", "unknown"
+	}
+
+	return "unknown", "unknown"
 }
 
 // ─────────────────────────────────────────────

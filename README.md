@@ -48,8 +48,12 @@ curl -X POST http://localhost:8080/auth/register \
 # 解析归档链接（使用返回的 api_key）
 curl -X POST http://localhost:8080/api/v1/parse \
   -H "Authorization: Bearer sk-xxxxxxxxxxxx" \
+  -H "X-Client: bot/tg-official" \
   -H "Content-Type: application/json" \
   -d '{"gallery_id":"3858751","gallery_key":"d3de60e849"}'
+
+# X-Client 为可选请求头，用于标记调用来源，格式为大类/应用标识。
+# 不传时后端会按 User-Agent 自动识别来源。
 ```
 
 完整 API 文档请参考 [server/README.md](server/README.md)

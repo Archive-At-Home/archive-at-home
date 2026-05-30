@@ -94,6 +94,7 @@ type NodeStatus struct {
 type TaskLog struct {
 	TraceID       string    `gorm:"primaryKey" json:"trace_id"`
 	UserID        string    `gorm:"index" json:"user_id"`
+	Client        string    `json:"client"`
 	GalleryID     string    `json:"gallery_id"`
 	GalleryKey    string    `json:"gallery_key"`
 	NodeID        string    `json:"node_id"`

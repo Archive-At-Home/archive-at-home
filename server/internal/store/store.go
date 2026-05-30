@@ -77,12 +77,13 @@ func (s *Store) DB() *gorm.DB {
 
 // LogTask records a completed task in a single write.
 // Only call this for tasks that successfully entered the broadcast/claim flow.
-func (s *Store) LogTask(traceID, userID, galleryID, galleryKey string, force, freeTier bool, estimatedGP int, nodeID string, success bool, failureReason string, actualGP int) {
+func (s *Store) LogTask(traceID, userID, client, galleryID, galleryKey string, force, freeTier bool, estimatedGP int, nodeID string, success bool, failureReason string, actualGP int) {
 	now := time.Now()
 	s.logCh <- func() {
 		tl := model.TaskLog{
 			TraceID:       traceID,
 			UserID:        userID,
+			Client:        client,
 			GalleryID:     galleryID,
 			GalleryKey:    galleryKey,
 			Success:       success,
