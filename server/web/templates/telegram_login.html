@@ -314,6 +314,18 @@
             if (redirectUrl) {
                 const finalUrl = new URL(redirectUrl);
                 finalUrl.searchParams.set(paramName, apiKey);
+
+                if (tgWebApp) {
+                    if (tgWebApp.platform === 'android') {
+                        window.location.href = finalUrl.toString();
+                    } else {
+                        tgWebApp.openTelegramLink(finalUrl.toString());
+                    }
+
+                    tgWebApp.close();
+                    return;
+                }
+
                 window.location.href = finalUrl.toString();
                 return;
             }
