@@ -216,7 +216,7 @@ func (c *Client) checkIgneous() error {
 }
 
 func (c *Client) initTestGallery() error {
-	resp, err := c.doRequest("GET", BaseURL, nil)
+	resp, err := c.doRequest("GET", BaseURL+"/?f_cats=513&f_spf=1000", nil)
 	if err != nil {
 		return err
 	}
