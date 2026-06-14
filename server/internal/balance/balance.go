@@ -44,7 +44,7 @@ type Transaction struct {
 	Type      TransactionType `json:"type"`
 	Amount    int64           `json:"amount"` // positive = credit, negative = debit
 	Balance   int64           `json:"balance_after"`
-	TraceID   string          `json:"trace_id,omitempty" gorm:"index"` // link to task
+	TraceID   string          `json:"trace_id,omitempty"` // link to task
 	Remark    string          `json:"remark,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
 }

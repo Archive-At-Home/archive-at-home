@@ -269,7 +269,7 @@ func (c *Client) RefreshStatus() error {
 	html := string(body)
 
 	// Check if free quota is available
-	haveFree := strings.Contains(html, "<strong>Free!</strong>")
+	haveFree := !strings.Contains(html, "GP</strong>")
 
 	// Extract GP and Credits
 	matches := balancePattern.FindStringSubmatch(html)

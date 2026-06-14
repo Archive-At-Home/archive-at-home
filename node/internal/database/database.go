@@ -76,8 +76,10 @@ func (db *DB) initSchema() error {
 		created_at INTEGER NOT NULL DEFAULT (unixepoch())
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_gid ON parse_logs(gid);
 	CREATE INDEX IF NOT EXISTS idx_created_at ON parse_logs(created_at);
+
+	-- Drop legacy gid index from older schema versions.
+	DROP INDEX IF EXISTS idx_gid;
 	`
 
 	_, err := db.conn.Exec(schema)

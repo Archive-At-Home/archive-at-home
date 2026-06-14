@@ -138,7 +138,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 	s.store.TouchLastUsed(userID)
 
 	// ── Step 1: Generate request trace and atomically publish/collapse ──
-	traceID := uuid.New().String()
+	traceID := uuid.Must(uuid.NewV7()).String()
 	status, payload, err := s.sched.PublishTask(workCtx, traceID, userID, req.GalleryID, req.GalleryKey, req.Force)
 	if err != nil {
 		return nil, fmt.Errorf("publish task: %w", err)
