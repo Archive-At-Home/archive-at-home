@@ -30,7 +30,6 @@ services:
       REDIS_PASSWORD: ""
       REDIS_DB: "0"
       CACHE_TTL: "168h"          # 7 days
-      TASK_LEASE_TTL: "2m"
       TASK_WAIT_TIMEOUT: "90s"
       DB_HOST: "postgres"
       DB_PORT: "5432"

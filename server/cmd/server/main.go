@@ -70,11 +70,6 @@ func main() {
 	// ── Service ──
 	svc := service.NewGalleryService(sched, hub, resultWaiter, claimWaiter, st, cfg, balanceSvc)
 
-	// ── Lease Watchdog (background) ──
-	watchdogCtx, watchdogCancel := context.WithCancel(ctx)
-	defer watchdogCancel()
-	go sched.StartLeaseWatchdog(watchdogCtx)
-
 	// ── Gin Router ──
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -112,7 +107,6 @@ func main() {
 	<-quit
 
 	log.Println("shutting down server...")
-	watchdogCancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer shutdownCancel()

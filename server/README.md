@@ -378,11 +378,12 @@ Node 通过 WebSocket 连接到 `/ws`。
 - Key: `inflight:{UserID}:{GalleryID}`
 - 同一用户短时间内重复请求自动合并
 
-### 租约机制
+### 崩溃安全
 
-- Node claim 任务后设置 TTL（默认 2 分钟）
-- 超时自动过期，任务 key 随 TTL 消失
-- Watchdog 定期扫描 pending 队列，清除 key 已不存在的孤儿条目
+- 任务 key 和 collapse key 均设置 5 分钟 TTL
+- 正常路径由 CompleteTask/FailTask 显式清理
+- TTL 仅用于 server 崩溃后的自动回收
+
 
 ### GP 成本追踪
 
@@ -398,9 +399,9 @@ Node 通过 WebSocket 连接到 `/ws`。
 | 脚本 | 功能 |
 |------|------|
 | `LuaPublishTask` | 原子创建任务 + 请求合并 + 缓存短路 |
-| `LuaFetchTask` | 原子抢占：PENDING → PROCESSING + 租约 |
+| `LuaFetchTask` | 原子抢占：PENDING → PROCESSING |
 | `LuaCompleteTask` | 原子完成：写入缓存 + DEL 任务 key |
-| `LuaFailTask` | 任务失败：DEL 任务 key + 清理 collapseKey + 移出队列 |
+| `LuaFailTask` | 任务失败：DEL 任务 key + 清理 collapseKey |
 
 ---
 
@@ -413,7 +414,6 @@ Node 通过 WebSocket 连接到 `/ws`。
 | `REDIS_PASSWORD` | (空) | Redis 密码 |
 | `REDIS_DB` | `0` | Redis DB |
 | `CACHE_TTL` | `168h` | 缓存有效期 |
-| `TASK_LEASE_TTL` | `2m` | 任务租约超时 |
 | `TASK_WAIT_TIMEOUT` | `90s` | HTTP 等待超时 |
 | `DB_HOST` | `localhost` | PostgreSQL 主机 |
 | `DB_PORT` | `5432` | PostgreSQL 端口 |

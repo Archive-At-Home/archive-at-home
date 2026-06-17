@@ -4,20 +4,10 @@ package scheduler
 // Lua Scripts for Atomic Redis Operations
 // ─────────────────────────────────────────────
 
-const luaTaskCleanupHelper = `
-local function cleanupTask(taskKey, traceID)
-    local collapseKey = redis.call("HGET", taskKey, "collapse_key")
-    redis.call("DEL", collapseKey)
-    redis.call("LREM", "queue:pending", 0, traceID)
-    redis.call("DEL", taskKey)
-end
-`
-
 // LuaFetchTask atomically claims a PENDING task for a worker node.
 //
 // KEYS[1] = task:{traceID}          (hash)
 // ARGV[1] = nodeID
-// ARGV[2] = leaseTTL (seconds)
 //
 // Returns:
 //
@@ -27,7 +17,6 @@ end
 const LuaFetchTask = `
 local taskKey  = KEYS[1]
 local nodeID   = ARGV[1]
-local leaseTTL = tonumber(ARGV[2])
 
 -- 1. Check task exists and is still PENDING
 local status = redis.call("HGET", taskKey, "status")
@@ -36,18 +25,17 @@ if status ~= "PENDING" then
 end
 
 -- 2. Atomically set to PROCESSING and bind node
-redis.call("HMSET", taskKey,
+redis.call("HSET", taskKey,
     "status",  "PROCESSING",
     "node_id", nodeID
 )
 
--- 3. Set lease TTL – if not reported back within this window, key expires
---    and lease watchdog can re-enqueue.
-redis.call("EXPIRE", taskKey, leaseTTL)
+-- 3. Set crash-safety TTL (5 min) – if node dies, keys auto-expire.
+redis.call("EXPIRE", taskKey, 300)
 
 -- 4. Sync collapseKey TTL so it never outlives the task hash
 local collapseKey = redis.call("HGET", taskKey, "collapse_key")
-redis.call("EXPIRE", collapseKey, leaseTTL)
+redis.call("EXPIRE", collapseKey, 300)
 
 -- 5. Return task details needed by the node
 local fields = redis.call("HMGET", taskKey, "gallery_id", "gallery_key")
@@ -55,21 +43,19 @@ return {"OK", fields[1], fields[2]}
 `
 
 // LuaCompleteTask stores the result in the per-user cache, then removes
-// the task and its collapsing/queue entries.
+// the task and its collapsing entries.
 //
 // KEYS[1] = task:{traceID}                (hash)
 // ARGV[1] = archive URL
 // ARGV[2] = cacheTTL (seconds)
 // ARGV[3] = nodeID (requesting node)
-// ARGV[4] = traceID
 //
 // Returns: "OK", "INVALID", or "NODE_MISMATCH"
-const LuaCompleteTask = luaTaskCleanupHelper + `
+const LuaCompleteTask = `
 local taskKey    = KEYS[1]
 local archiveURL = ARGV[1]
 local cacheTTL   = tonumber(ARGV[2])
 local nodeID     = ARGV[3]
-local traceID    = ARGV[4]
 
 local status = redis.call("HGET", taskKey, "status")
 if status ~= "PROCESSING" then
@@ -88,22 +74,22 @@ local cacheKey = redis.call("HGET", taskKey, "cache_key")
 redis.call("SET", cacheKey, archiveURL, "EX", cacheTTL)
 
 -- 2. Remove task routing state and the task record itself
-cleanupTask(taskKey, traceID)
+local collapseKey = redis.call("HGET", taskKey, "collapse_key")
+redis.call("DEL", collapseKey)
+redis.call("DEL", taskKey)
 
 return "OK"
 `
 
-// LuaFailTask removes a task and cleans up collapsing/queue entries.
+// LuaFailTask removes a task and cleans up collapsing entries.
 //
 // KEYS[1] = task:{traceID}                (hash)
 // ARGV[1] = nodeID (optional; required when status=PROCESSING)
-// ARGV[2] = traceID
 //
 // Returns: "OK", "GONE", "NEED_NODE", or "NODE_MISMATCH"
-const LuaFailTask = luaTaskCleanupHelper + `
+const LuaFailTask = `
 local taskKey = KEYS[1]
 local nodeID  = ARGV[1]
-local traceID = ARGV[2]
 
 local status = redis.call("HGET", taskKey, "status")
 if not status then
@@ -122,7 +108,9 @@ if status == "PROCESSING" then
 end
 
 -- Remove task routing state and the task record itself.
-cleanupTask(taskKey, traceID)
+local collapseKey = redis.call("HGET", taskKey, "collapse_key")
+redis.call("DEL", collapseKey)
+redis.call("DEL", taskKey)
 
 return "OK"
 `
@@ -136,8 +124,7 @@ return "OK"
 // ARGV[1] = traceID
 // ARGV[2] = galleryID
 // ARGV[3] = force   ("0" or "1")
-// ARGV[4] = leaseTTL (seconds) – used for inflight key expiry
-// ARGV[5] = galleryKey
+// ARGV[4] = galleryKey
 //
 // Returns:
 //
@@ -151,8 +138,7 @@ local cacheKey     = KEYS[3]
 local traceID      = ARGV[1]
 local galleryID    = ARGV[2]
 local force        = ARGV[3]
-local leaseTTL     = tonumber(ARGV[4])
-local galleryKey   = ARGV[5]
+local galleryKey   = ARGV[4]
 
 -- If force=false and cache already exists, return cached immediately.
 if force == "0" then
@@ -171,7 +157,7 @@ if existing then
 end
 
 -- Create the task hash
-redis.call("HMSET", taskKey,
+redis.call("HSET", taskKey,
     "gallery_id",    galleryID,
     "gallery_key",   galleryKey,
     "collapse_key",  collapseKey,
@@ -179,13 +165,10 @@ redis.call("HMSET", taskKey,
     "status",        "PENDING",
     "node_id",       ""
 )
-redis.call("EXPIRE", taskKey, leaseTTL * 3)  -- generous TTL for the hash itself
+redis.call("EXPIRE", taskKey, 300)  -- crash-safety TTL (5 min)
 
--- Set collapsing sentinel
-redis.call("SET", collapseKey, traceID, "EX", leaseTTL * 2)
-
--- Push to pending queue
-redis.call("RPUSH", "queue:pending", traceID)
+-- Set collapsing sentinel (TTL synced with taskKey)
+redis.call("SET", collapseKey, traceID, "EX", 300)
 
 return {"CREATED", traceID}
 `

@@ -20,7 +20,6 @@ type Config struct {
 	CacheTTL time.Duration // per-user result cache lifetime
 
 	// Task
-	TaskLeaseTTL    time.Duration // lease timeout for claimed tasks
 	TaskWaitTimeout time.Duration // max time HTTP handler blocks waiting for result
 
 	// PostgreSQL
@@ -57,7 +56,6 @@ func Load() *Config {
 		RedisPassword:       envOr("REDIS_PASSWORD", ""),
 		RedisDB:             envIntOr("REDIS_DB", 0),
 		CacheTTL:            envDurationOr("CACHE_TTL", 7*24*time.Hour),
-		TaskLeaseTTL:        envDurationOr("TASK_LEASE_TTL", 2*time.Minute),
 		TaskWaitTimeout:     envDurationOr("TASK_WAIT_TIMEOUT", 90*time.Second),
 		DBHost:              envOr("DB_HOST", "localhost"),
 		DBPort:              envOr("DB_PORT", "5432"),

@@ -21,9 +21,6 @@ func CollapsingKey(userID, galleryID string) string {
 	return "inflight:" + userID + ":" + galleryID
 }
 
-// PendingQueueKey is the Redis list holding pending task IDs.
-const PendingQueueKey = "queue:pending"
-
 // ─────────────────────────────────────────────
 // WebSocket Protocol Messages
 // ─────────────────────────────────────────────
