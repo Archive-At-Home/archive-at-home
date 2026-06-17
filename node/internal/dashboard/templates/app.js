@@ -89,6 +89,9 @@ function updateUI() {
         document.getElementById('totalSizeMiB').textContent = stats.totalSizeMiB.toFixed(1);
     }
 
+    // Seven-day free quota consumption (MiB → GB)
+    document.getElementById('sevenDayFreeQuotaGB').textContent = (stats.sevenDayFreeQuotaMiB / 953.674).toFixed(2);
+
     // Uptime
     document.getElementById('uptime').textContent = formatDuration(stats.startTime);
     document.getElementById('startTime').textContent = '启动于 ' + new Date(stats.startTime).toLocaleString('zh-CN');

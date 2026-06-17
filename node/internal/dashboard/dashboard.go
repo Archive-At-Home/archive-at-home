@@ -30,14 +30,15 @@ type Stats struct {
 	TasksFailed         int `json:"tasksFailed"`
 
 	// GP statistics
-	GPBalance     int     `json:"gpBalance"`
-	HaveFreeQuota bool    `json:"haveFreeQuota"`
-	TodayGPCost   int     `json:"todayGPCost"`
-	TotalGPCost   int     `json:"totalGPCost"`
-	MaxGPCost     int     `json:"maxGPCost"`
-	TotalSizeMiB  float64 `json:"totalSizeMiB"`
-	AvgGPPerTask  float64 `json:"avgGPPerTask"`
-	AvgSizeMiB    float64 `json:"avgSizeMiB"`
+	GPBalance            int     `json:"gpBalance"`
+	HaveFreeQuota        bool    `json:"haveFreeQuota"`
+	TodayGPCost          int     `json:"todayGPCost"`
+	TotalGPCost          int     `json:"totalGPCost"`
+	MaxGPCost            int     `json:"maxGPCost"`
+	TotalSizeMiB         float64 `json:"totalSizeMiB"`
+	SevenDayFreeQuotaMiB float64 `json:"sevenDayFreeQuotaMiB"`
+	AvgGPPerTask         float64 `json:"avgGPPerTask"`
+	AvgSizeMiB           float64 `json:"avgSizeMiB"`
 
 	// Session info
 	NodeID    string    `json:"nodeId"`
@@ -118,6 +119,7 @@ func (d *Dashboard) GetStats() Stats {
 			stats.TodayGPCost = agg.TodayGP
 			stats.TotalGPCost = agg.TotalGP
 			stats.TotalSizeMiB = agg.TotalSizeMiB
+			stats.SevenDayFreeQuotaMiB = agg.SevenDayFreeQuotaMiB
 
 			if agg.TotalTasks > 0 {
 				stats.AvgGPPerTask = float64(agg.TotalGP) / float64(agg.TotalTasks)
