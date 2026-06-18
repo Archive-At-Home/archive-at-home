@@ -55,6 +55,7 @@ type UserService interface {
 
 	// SetStatus sets user account status (active / banned / suspended).
 	SetStatus(ctx context.Context, userID string, status string) error
+
 	// UpdateLastCheckin updates the user's last checkin timestamp.
 	UpdateLastCheckin(ctx context.Context, userID string) error
 }

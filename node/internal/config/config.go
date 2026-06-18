@@ -24,8 +24,7 @@ type Config struct {
 	} `yaml:"ehentai"`
 
 	Task struct {
-		BaseBalanceGP  int `yaml:"base_balance_gp"`  // Base balance for delay calculation (default: 1000000)
-		BaseClaimDelay int `yaml:"base_claim_delay"` // Base claim delay in seconds for low balance nodes (default: 1)
+		GPCostWillingness int `yaml:"gp_cost_willingness"` // Contributor willingness to spend GP (1-5)
 	} `yaml:"task"`
 
 	Database struct {
@@ -66,11 +65,8 @@ func Load(path string) (*Config, error) {
 	if cfg.Database.Path == "" {
 		return nil, fmt.Errorf("database.path is required")
 	}
-	if cfg.Task.BaseBalanceGP == 0 {
-		return nil, fmt.Errorf("task.base_balance_gp is required")
-	}
-	if cfg.Task.BaseClaimDelay == 0 {
-		return nil, fmt.Errorf("task.base_claim_delay is required")
+	if cfg.Task.GPCostWillingness < 1 || cfg.Task.GPCostWillingness > 5 {
+		return nil, fmt.Errorf("task.gp_cost_willingness must be between 1 and 5")
 	}
 
 	return &cfg, nil

@@ -338,21 +338,19 @@ Node 通过 WebSocket 连接到 `/ws`。
 
 | 消息类型 | 说明 | Payload |
 |---------|------|---------|
-| `TASK_ANNOUNCEMENT` | 任务广播 | `{trace_id, free_tier, estimated_gp}` |
-| `TASK_ASSIGNED` | 任务分配 | `{trace_id, gallery_id, gallery_key}` |
-| `TASK_GONE` | 任务已被抢占 | `{trace_id}` |
+| `TASK_ASSIGNMENT` | 直接分配任务 | `{trace_id, gallery_id, gallery_key}` |
 
 ### Node → Server
 
 | 消息类型 | 说明 | Payload |
 |---------|------|---------|
-| `FETCH_TASK` | 抢占任务 | `{trace_id, node_id}` |
-| `TASK_RESULT` | 任务结果 | `{trace_id, node_id, success, actual_gp, archive_url, error}` |
+| `TASK_RESULT` | 任务结果 | `{trace_id, node_id, success, retriable, actual_gp, archive_url, error}` |
+| `NODE_STATUS` | 节点状态汇报（周期性） | `{have_free_quota, gp_balance, gp_cost_willingness}` |
 
 **消息格式:**
 ```json
 {
-  "type": "TASK_ANNOUNCEMENT",
+  "type": "TASK_ASSIGNMENT",
   "payload": { ... }
 }
 ```
@@ -361,11 +359,11 @@ Node 通过 WebSocket 连接到 `/ws`。
 
 ## 核心设计
 
-### 无状态广播调度
+### 直接分配调度
 
-- Server 发布任务时仅广播轻量信号，不指定执行者
-- Node 自主决策是否抢占
-- Redis Lua 脚本原子保证互斥
+- Server 根据节点状态（免费额度 / GP 余额 / 消耗意愿）选择最合适的节点
+- 直接发送 `TASK_ASSIGNMENT` 到指定节点，无竞速
+- 失败时自动重试下一个候选节点
 
 ### 私有化缓存
 
@@ -380,8 +378,8 @@ Node 通过 WebSocket 连接到 `/ws`。
 
 ### 崩溃安全
 
-- 任务 key 和 collapse key 均设置 5 分钟 TTL
-- 正常路径由 CompleteTask/FailTask 显式清理
+- collapse key 设置 5 分钟 TTL
+- 正常路径由 CompleteTask/FailTask 显式删除
 - TTL 仅用于 server 崩溃后的自动回收
 
 
@@ -398,10 +396,9 @@ Node 通过 WebSocket 连接到 `/ws`。
 
 | 脚本 | 功能 |
 |------|------|
-| `LuaPublishTask` | 原子创建任务 + 请求合并 + 缓存短路 |
-| `LuaFetchTask` | 原子抢占：PENDING → PROCESSING |
-| `LuaCompleteTask` | 原子完成：写入缓存 + DEL 任务 key |
-| `LuaFailTask` | 任务失败：DEL 任务 key + 清理 collapseKey |
+| `LuaPublishTask` | 原子缓存检查 + 请求合并 + 创建 collapse 哨兵 |
+
+CompleteTask 和 FailTask 均为普通 Redis 命令（SET/DEL），无需 Lua。
 
 ---
 

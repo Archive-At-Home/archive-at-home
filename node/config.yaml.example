@@ -30,20 +30,10 @@ database:
   path: "./data/db.db"
 
 task:
-  # Base balance threshold for dynamic claim delay (in GP)
-  # Nodes with balance >= this value will claim tasks immediately (0 delay)
-  # Nodes with lower balance will have progressively longer delays
-  # This helps protect low-balance nodes from hitting the GP reserve threshold
-  # Uses quadratic function for non-linear delay: high balance = minimal delay, low balance = strong protection
-  # Default: 1000000
-  base_balance_gp: 1000000
-
-  # Maximum claim delay for low-balance nodes (in seconds)
-  # Nodes at the GP reserve threshold will wait this long before claiming
-  # Nodes with balance between reserve and base_balance_gp will have delays
-  # calculated via quadratic interpolation (delay increases rapidly near reserve)
-  # Default: 1
-  base_claim_delay: 1
+  # Contributor willingness to spend GP on tasks (1-5)
+  # Higher values give this node priority for GP-consuming tasks
+  # Nodes with equal willingness are randomly shuffled for fair distribution
+  gp_cost_willingness: 3
 
 dashboard:
   # Enable the web dashboard for monitoring node status

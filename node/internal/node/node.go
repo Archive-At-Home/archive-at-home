@@ -16,51 +16,43 @@ import (
 )
 
 const (
-	// Reserve 1000 GP to ensure successful download
-	GPReserve = 1000
-
 	// Task queue buffer size
-	TaskQueueSize = 100
+	TaskQueueSize = 10
 
 	// Number of concurrent task processors
 	WorkerCount = 5
 
 	// Status refresh interval
 	StatusRefreshInterval = 5 * time.Minute
-
-	// Delay for non-free quota nodes claiming free tier tasks
-	FreeTierClaimDelay = 2 * time.Second
 )
 
 // Node represents a worker node
 type Node struct {
-	nodeID         string
-	signature      string
-	serverURL      string
-	ehClient       *ehentai.Client
-	db             *database.DB
-	wsClient       *ws.Client
-	taskQueue      chan *model.TaskAssignment
-	wg             sync.WaitGroup
-	dashboard      *dashboard.Dashboard
-	baseBalanceGP  int           // Base balance for delay calculation
-	baseClaimDelay time.Duration // Base claim delay for low balance nodes
-	FatalCh        chan struct{} // Closed when a fatal error (e.g. igneous revoked) occurs
+	nodeID            string
+	signature         string
+	serverURL         string
+	ehClient          *ehentai.Client
+	db                *database.DB
+	wsClient          *ws.Client
+	taskQueue         chan *model.TaskAssignment
+	wg                sync.WaitGroup
+	dashboard         *dashboard.Dashboard
+	gpCostWillingness int           // Contributor-defined willingness to spend GP (1-5)
+	FatalCh           chan struct{} // Closed when a fatal error (e.g. igneous revoked) occurs
 }
 
 // NewNode creates a new worker node
-func NewNode(nodeID, signature, serverURL string, ehClient *ehentai.Client, db *database.DB, maxGPCost, baseBalanceGP, baseClaimDelaySec int) *Node {
+func NewNode(nodeID, signature, serverURL string, ehClient *ehentai.Client, db *database.DB, maxGPCost, gpCostWillingness int) *Node {
 	return &Node{
-		nodeID:         nodeID,
-		signature:      signature,
-		serverURL:      serverURL,
-		ehClient:       ehClient,
-		db:             db,
-		taskQueue:      make(chan *model.TaskAssignment, TaskQueueSize),
-		dashboard:      dashboard.NewDashboard(nodeID, serverURL, maxGPCost),
-		baseBalanceGP:  baseBalanceGP,
-		baseClaimDelay: time.Duration(baseClaimDelaySec) * time.Second,
-		FatalCh:        make(chan struct{}),
+		nodeID:            nodeID,
+		signature:         signature,
+		serverURL:         serverURL,
+		ehClient:          ehClient,
+		db:                db,
+		taskQueue:         make(chan *model.TaskAssignment, TaskQueueSize),
+		dashboard:         dashboard.NewDashboard(nodeID, serverURL, maxGPCost),
+		gpCostWillingness: gpCostWillingness,
+		FatalCh:           make(chan struct{}),
 	}
 }
 
@@ -120,35 +112,8 @@ func (n *Node) Stop() error {
 // WebSocket Message Handlers (implements ws.MessageHandler)
 // ─────────────────────────────────────────────
 
-// OnTaskAnnouncement handles incoming task announcements
-func (n *Node) OnTaskAnnouncement(ctx context.Context, ann *model.TaskAnnouncement) {
-	n.logf("received task announcement: trace=%s, freeTier=%v, estimatedGP=%d",
-		ann.TraceID, ann.FreeTier, ann.EstimatedGP)
-
-	// Check if we should claim this task
-	shouldClaim, delay := n.shouldClaimTask(ann)
-
-	if !shouldClaim {
-		n.logf("skipping task %s (insufficient balance)", ann.TraceID)
-		return
-	}
-
-	// Schedule the fetch request with delay
-	go func() {
-		if delay > 0 {
-			n.logf("waiting %v before claiming task %s", delay, ann.TraceID)
-			time.Sleep(delay)
-		}
-
-		n.logf("attempting to claim task %s", ann.TraceID)
-		if err := n.wsClient.SendFetchTask(ann.TraceID); err != nil {
-			n.logf("failed to send fetch task: %v", err)
-		}
-	}()
-}
-
-// OnTaskAssigned handles task assignment from server
-func (n *Node) OnTaskAssigned(ctx context.Context, task *model.TaskAssignment) {
+// OnTaskAssignment handles direct task assignment from server.
+func (n *Node) OnTaskAssignment(ctx context.Context, task *model.TaskAssignment) {
 	n.logf("task assigned: trace=%s, gallery=%s", task.TraceID, task.GalleryID)
 
 	// Queue the task for async processing
@@ -157,11 +122,6 @@ func (n *Node) OnTaskAssigned(ctx context.Context, task *model.TaskAssignment) {
 	default:
 		n.logf("task queue full, dropping task %s", task.TraceID)
 	}
-}
-
-// OnTaskGone handles task gone notification (already claimed by another node)
-func (n *Node) OnTaskGone(ctx context.Context, traceID string) {
-	n.logf("task gone: trace=%s", traceID)
 }
 
 // OnConnected handles WebSocket connection established
@@ -174,49 +134,6 @@ func (n *Node) OnConnected() {
 func (n *Node) OnDisconnected() {
 	n.logf("disconnected from server")
 	n.dashboard.UpdateConnectionStatus(false)
-}
-
-// ─────────────────────────────────────────────
-// Task Claiming Strategy
-// ─────────────────────────────────────────────
-
-func (n *Node) shouldClaimTask(ann *model.TaskAnnouncement) (bool, time.Duration) {
-	haveFree, gpBalance := n.ehClient.GetStatus()
-
-	// 情况 A：有免费额度的免费任务
-	if ann.FreeTier && haveFree {
-		return true, 0
-	}
-
-	// 情况 B：余额充足（满足预留金）
-	if gpBalance >= ann.EstimatedGP+GPReserve {
-		if ann.FreeTier {
-			// 免费任务但没有免费额度，固定长延迟以减少资源浪费
-			return true, FreeTierClaimDelay
-		}
-		// 付费任务，使用基于余额的动态延迟
-		return true, n.calculateBalanceBasedDelay(gpBalance)
-	}
-
-	return false, 0
-}
-
-// calculateBalanceBasedDelay 根据余额计算动态延迟
-// 余额越高，延迟越小；余额越低（但仍满足阈值），延迟越大
-// 使用平方函数实现非线性延迟：高余额时延迟增长缓慢，低余额时延迟快速增大
-func (n *Node) calculateBalanceBasedDelay(currentBalance int) time.Duration {
-	// 余额高于基准值，不延迟
-	if currentBalance >= n.baseBalanceGP {
-		return 0
-	}
-
-	// 余额在预留金和基准值之间，使用平方函数计算延迟
-	// delayRatio = ((baseBalanceGP - currentBalance) / (baseBalanceGP - GPReserve))^2
-	linearRatio := float64(n.baseBalanceGP-currentBalance) / float64(n.baseBalanceGP-GPReserve)
-	delayRatio := linearRatio * linearRatio // 平方函数
-	delay := time.Duration(float64(n.baseClaimDelay) * delayRatio)
-
-	return delay
 }
 
 // ─────────────────────────────────────────────
@@ -257,6 +174,13 @@ func (n *Node) processTask(task *model.TaskAssignment) {
 		n.logf("task %s failed: %v", task.TraceID, err)
 		result.Success = false
 		result.Error = err.Error()
+
+		if errors.Is(err, ehentai.ErrCopyrightRestriction) {
+			result.Retriable = false
+		} else {
+			result.Retriable = true
+		}
+
 		if errors.Is(err, ehentai.ErrIgneousRevoked) {
 			fatal = true
 		}
@@ -331,8 +255,8 @@ func (n *Node) refreshAndLogStatus(label string) error {
 		return err
 	}
 	haveFree, gpBalance := n.ehClient.GetStatus()
-	n.logf("status %s: haveFreeQuota=%v, gpBalance=%d", label, haveFree, gpBalance)
-	if err := n.wsClient.SendNodeStatus(haveFree, gpBalance); err != nil {
+	n.logf("status %s: haveFreeQuota=%v, gpBalance=%d, willingness=%d", label, haveFree, gpBalance, n.gpCostWillingness)
+	if err := n.wsClient.SendNodeStatus(haveFree, gpBalance, n.gpCostWillingness); err != nil {
 		n.logf("failed to send node status: %v", err)
 	}
 	return nil

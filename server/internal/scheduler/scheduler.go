@@ -19,25 +19,17 @@ const (
 
 // Scheduler manages task lifecycle via Redis.
 type Scheduler struct {
-	rdb *redis.Client
-	cfg *config.Config
-
-	// Pre-loaded Lua script SHAs
-	fetchScript    *redis.Script
-	completeScript *redis.Script
-	failScript     *redis.Script
-	publishScript  *redis.Script
+	rdb           *redis.Client
+	cfg           *config.Config
+	publishScript *redis.Script
 }
 
-// NewScheduler initialises the scheduler and loads Lua scripts.
+// NewScheduler initialises the scheduler and loads the publish Lua script.
 func NewScheduler(rdb *redis.Client, cfg *config.Config) *Scheduler {
 	return &Scheduler{
-		rdb:            rdb,
-		cfg:            cfg,
-		fetchScript:    redis.NewScript(LuaFetchTask),
-		completeScript: redis.NewScript(LuaCompleteTask),
-		failScript:     redis.NewScript(LuaFailTask),
-		publishScript:  redis.NewScript(LuaPublishTask),
+		rdb:           rdb,
+		cfg:           cfg,
+		publishScript: redis.NewScript(LuaPublishTask),
 	}
 }
 
@@ -52,18 +44,17 @@ func boolToFlag(b bool) string {
 // Public API
 // ─────────────────────────────────────────────
 
-// PublishTask creates a new task or collapses into an existing one.
+// PublishTask creates a new collapsing sentinel or collapses into an existing one.
 // Returns status + payload:
-//   - PublishCreated: payload is created traceID
-//   - PublishCollapsed: payload is existing traceID
-//   - PublishCached: payload is archiveURL
-func (s *Scheduler) PublishTask(ctx context.Context, traceID, userID, galleryID, galleryKey string, force bool) (PublishStatus, string, error) {
+//   - PublishCreated: payload is the new traceID
+//   - PublishCollapsed: payload is the existing traceID
+//   - PublishCached: payload is the archiveURL
+func (s *Scheduler) PublishTask(ctx context.Context, traceID, userID, galleryID string, force bool) (PublishStatus, string, error) {
 	keys := []string{
-		model.TaskKey(traceID),
 		model.CollapsingKey(userID, galleryID),
 		model.CacheKey(userID, galleryID),
 	}
-	args := []any{traceID, galleryID, boolToFlag(force), galleryKey}
+	args := []any{traceID, boolToFlag(force)}
 
 	vals, err := s.publishScript.Run(ctx, s.rdb, keys, args...).StringSlice()
 	if err != nil {
@@ -85,70 +76,28 @@ func (s *Scheduler) PublishTask(ctx context.Context, traceID, userID, galleryID,
 	}
 }
 
-// FetchTask lets a worker node attempt to claim a pending task.
-// Returns the assignment details or an indication that the task is gone.
-func (s *Scheduler) FetchTask(ctx context.Context, traceID, nodeID string) (*model.TaskAssignment, error) {
-	keys := []string{model.TaskKey(traceID)}
-	args := []any{nodeID}
+// CompleteTask stores the result in cache and removes the collapsing sentinel.
+func (s *Scheduler) CompleteTask(ctx context.Context, userID, galleryID, archiveURL string) error {
+	collapseKey := model.CollapsingKey(userID, galleryID)
+	cacheKey := model.CacheKey(userID, galleryID)
+	ttl := s.cfg.CacheTTL
 
-	vals, err := s.fetchScript.Run(ctx, s.rdb, keys, args...).StringSlice()
+	pipe := s.rdb.Pipeline()
+	pipe.Set(ctx, cacheKey, archiveURL, ttl)
+	pipe.Del(ctx, collapseKey)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("fetch task lua: %w", err)
-	}
-
-	if vals[0] == "GONE" {
-		return nil, nil // task already claimed
-	}
-
-	// vals = ["OK", galleryID, galleryKey]
-	return &model.TaskAssignment{
-		TraceID:    traceID,
-		GalleryID:  vals[1],
-		GalleryKey: vals[2],
-	}, nil
-}
-
-// CompleteTask stores the result in cache and removes task state.
-// nodeID must match the node currently assigned to the task.
-func (s *Scheduler) CompleteTask(ctx context.Context, traceID, nodeID, archiveURL string) error {
-	keys := []string{model.TaskKey(traceID)}
-	args := []any{archiveURL, int(s.cfg.CacheTTL.Seconds()), nodeID}
-
-	status, err := s.completeScript.Run(ctx, s.rdb, keys, args...).Text()
-	if err != nil {
-		return fmt.Errorf("complete task lua: %w", err)
-	}
-	if status == "NODE_MISMATCH" {
-		return fmt.Errorf("task reassigned to another node (stale completion attempt)")
-	}
-	if status != "OK" {
-		return fmt.Errorf("complete task: unexpected status %s", status)
+		return fmt.Errorf("complete task: %w", err)
 	}
 	return nil
 }
 
-// FailTask removes a task and clears collapse state.
-// For PROCESSING tasks, nodeID must match the currently assigned node.
-// For PENDING tasks, pass nodeID as an empty string.
-func (s *Scheduler) FailTask(ctx context.Context, traceID, nodeID string) error {
-	keys := []string{model.TaskKey(traceID)}
-	args := []any{nodeID}
-
-	status, err := s.failScript.Run(ctx, s.rdb, keys, args...).Text()
-	if err != nil {
-		return fmt.Errorf("fail task lua: %w", err)
-	}
-	if status == "NODE_MISMATCH" {
-		return fmt.Errorf("task reassigned to another node (stale fail attempt)")
-	}
-	if status == "NEED_NODE" {
-		return fmt.Errorf("processing task failure requires node identity")
-	}
-	if status == "GONE" {
-		return fmt.Errorf("task not found")
-	}
-	if status != "OK" {
-		return fmt.Errorf("fail task: unexpected status %s", status)
+// FailTask removes the collapsing sentinel so a subsequent request
+// for the same user+gallery can create a fresh task.
+func (s *Scheduler) FailTask(ctx context.Context, userID, galleryID string) error {
+	collapseKey := model.CollapsingKey(userID, galleryID)
+	if err := s.rdb.Del(ctx, collapseKey).Err(); err != nil {
+		return fmt.Errorf("fail task: %w", err)
 	}
 	return nil
 }

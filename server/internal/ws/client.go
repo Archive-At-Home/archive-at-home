@@ -109,15 +109,6 @@ func (c *Client) handleMessage(ctx context.Context, raw []byte) {
 	}
 
 	switch env.Type {
-	case model.MsgTypeFetchTask:
-		var req model.FetchTaskRequest
-		if err := json.Unmarshal(env.Payload, &req); err != nil {
-			log.Printf("[ws] node %s: bad FETCH_TASK payload: %v", c.NodeID, err)
-			return
-		}
-		req.NodeID = c.NodeID // enforce server-side node identity
-		c.hub.HandleFetchTask(ctx, c, &req)
-
 	case model.MsgTypeTaskResult:
 		var res model.TaskResult
 		if err := json.Unmarshal(env.Payload, &res); err != nil {

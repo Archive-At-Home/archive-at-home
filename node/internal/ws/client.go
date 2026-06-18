@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -26,9 +27,7 @@ const (
 
 // MessageHandler handles incoming WebSocket messages
 type MessageHandler interface {
-	OnTaskAnnouncement(ctx context.Context, ann *model.TaskAnnouncement)
-	OnTaskAssigned(ctx context.Context, task *model.TaskAssignment)
-	OnTaskGone(ctx context.Context, traceID string)
+	OnTaskAssignment(ctx context.Context, task *model.TaskAssignment)
 	OnConnected()
 	OnDisconnected()
 }
@@ -67,13 +66,25 @@ func (c *Client) Connect() error {
 	return c.connect()
 }
 
+// nodeVersion is the semantic version of this node, matching git tags.
+const nodeVersion = "v0.6.0"
+
 func (c *Client) connect() error {
 	header := http.Header{}
 	header.Set("X-Auth-Token", c.authToken)
+	header.Set("X-Node-Version", nodeVersion)
 
-	conn, _, err := websocket.DefaultDialer.Dial(c.serverURL, header)
+	conn, resp, err := websocket.DefaultDialer.Dial(c.serverURL, header)
 	if err != nil {
-		return fmt.Errorf("dial failed: %w", err)
+		detail := err.Error()
+		if resp != nil {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			if len(body) > 0 {
+				detail = string(body)
+			}
+		}
+		return fmt.Errorf("dial failed: %s", detail)
 	}
 
 	connCtx, connCancel := context.WithCancel(c.parentCtx)
@@ -177,17 +188,6 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// SendFetchTask sends a FETCH_TASK request to claim a task.
-func (c *Client) SendFetchTask(traceID string) error {
-	return c.sendJSON(model.Envelope{
-		Type: model.MsgTypeFetchTask,
-		Payload: model.FetchTaskRequest{
-			TraceID: traceID,
-			NodeID:  c.nodeID,
-		},
-	})
-}
-
 // SendTaskResult submits a task result to the server.
 func (c *Client) SendTaskResult(result *model.TaskResult) error {
 	result.NodeID = c.nodeID
@@ -198,12 +198,13 @@ func (c *Client) SendTaskResult(result *model.TaskResult) error {
 }
 
 // SendNodeStatus reports the current node status to the server.
-func (c *Client) SendNodeStatus(haveFreeQuota bool, gpBalance int) error {
+func (c *Client) SendNodeStatus(haveFreeQuota bool, gpBalance, gpCostWillingness int) error {
 	return c.sendJSON(model.Envelope{
 		Type: model.MsgTypeNodeStatus,
 		Payload: model.NodeStatus{
-			HaveFreeQuota: haveFreeQuota,
-			GPBalance:     gpBalance,
+			HaveFreeQuota:     haveFreeQuota,
+			GPBalance:         gpBalance,
+			GPCostWillingness: gpCostWillingness,
 		},
 	})
 }
@@ -332,31 +333,13 @@ func (c *Client) handleMessage(ctx context.Context, data []byte) {
 	}
 
 	switch env.Type {
-	case model.MsgTypeTaskAnnouncement:
-		var ann model.TaskAnnouncement
-		if err := json.Unmarshal(env.Payload, &ann); err != nil {
-			log.Printf("[ws] bad TASK_ANNOUNCEMENT payload: %v", err)
-			return
-		}
-		c.handler.OnTaskAnnouncement(ctx, &ann)
-
-	case model.MsgTypeTaskAssigned:
+	case model.MsgTypeTaskAssignment:
 		var task model.TaskAssignment
 		if err := json.Unmarshal(env.Payload, &task); err != nil {
-			log.Printf("[ws] bad TASK_ASSIGNED payload: %v", err)
+			log.Printf("[ws] bad TASK_ASSIGNMENT payload: %v", err)
 			return
 		}
-		c.handler.OnTaskAssigned(ctx, &task)
-
-	case model.MsgTypeTaskGone:
-		var payload struct {
-			TraceID string `json:"trace_id"`
-		}
-		if err := json.Unmarshal(env.Payload, &payload); err != nil {
-			log.Printf("[ws] bad TASK_GONE payload: %v", err)
-			return
-		}
-		c.handler.OnTaskGone(ctx, payload.TraceID)
+		c.handler.OnTaskAssignment(ctx, &task)
 
 	default:
 		log.Printf("[ws] unknown message type: %s", env.Type)

@@ -56,8 +56,7 @@ func main() {
 		ehClient,
 		db,
 		cfg.EHentai.MaxGPCost,
-		cfg.Task.BaseBalanceGP,
-		cfg.Task.BaseClaimDelay,
+		cfg.Task.GPCostWillingness,
 	)
 
 	// Start node

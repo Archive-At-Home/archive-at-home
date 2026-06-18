@@ -54,8 +54,7 @@ func main() {
 
 	// ── WebSocket Hub ──
 	resultWaiter := ws.NewResultWaiter()
-	claimWaiter := ws.NewClaimWaiter()
-	hub := ws.NewHub(sched, resultWaiter, claimWaiter)
+	hub := ws.NewHub(resultWaiter)
 
 	// ── User & Balance Services ──
 	userSvc := auth.NewUserService(st.DB())
@@ -68,7 +67,7 @@ func main() {
 	}
 
 	// ── Service ──
-	svc := service.NewGalleryService(sched, hub, resultWaiter, claimWaiter, st, cfg, balanceSvc)
+	svc := service.NewGalleryService(sched, hub, resultWaiter, st, cfg, balanceSvc)
 
 	// ── Gin Router ──
 	gin.SetMode(gin.ReleaseMode)

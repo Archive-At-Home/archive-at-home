@@ -13,7 +13,10 @@ import (
 	"github.com/Archive-At-Home/archive-at-home/server/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"golang.org/x/mod/semver"
 )
+
+const minNodeVersion = "v0.6.0"
 
 // Handler holds HTTP/WS endpoint handlers.
 type Handler struct {
@@ -174,6 +177,15 @@ func (h *Handler) WebSocket(c *gin.Context) {
 	}
 
 	// Upgrade to WebSocket
+	if v := c.GetHeader("X-Node-Version"); !semver.IsValid(v) || semver.Compare(v, minNodeVersion) < 0 {
+		log.Printf("[handler] node %s version rejected: %s (min %s)", nodeID, v, minNodeVersion)
+		c.JSON(http.StatusUpgradeRequired, gin.H{
+			"error":            "node version too old, please update",
+			"min_node_version": minNodeVersion,
+		})
+		return
+	}
+
 	conn, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("[handler] websocket upgrade error: %v", err)

@@ -37,7 +37,8 @@ var (
 
 	exURL, _ = url.Parse(ExBaseURL)
 
-	ErrIgneousRevoked = fmt.Errorf("exhentai igneous cookie has become 'mystery' — access revoked")
+	ErrIgneousRevoked       = fmt.Errorf("exhentai igneous cookie has become 'mystery' — access revoked")
+	ErrCopyrightRestriction = fmt.Errorf("gallery unavailable due to copyright restrictions")
 )
 
 // Client handles EHentai API calls
@@ -357,6 +358,9 @@ func (c *Client) GetArchiveURL(gid, token string) (archiveURL string, actualGP i
 	// Extract cost
 	costMatches := costPattern.FindStringSubmatch(html)
 	if len(costMatches) < 2 {
+		if strings.Contains(html, "copyright") {
+			return "", 0, 0, ErrCopyrightRestriction
+		}
 		return "", 0, 0, fmt.Errorf("cannot find cost info")
 	}
 

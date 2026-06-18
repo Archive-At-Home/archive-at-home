@@ -5,7 +5,7 @@ Archive-at-Home 分布式归档链接解析系统的工作节点。
 ## 功能
 
 - 通过 WebSocket 连接到中控服务器
-- 自主抢占并执行归档链接解析任务
+- 接收并执行服务器分配的任务
 - 使用 ExHentai Cookie 访问受限画廊
 - 本地 SQLite 数据库记录解析日志
 - Web Dashboard 监控节点状态
@@ -55,8 +55,7 @@ ehentai:
 
 # 任务策略配置
 task:
-  base_balance_gp: 1000000        # 余额基准值（高于该值不延迟抢占）
-  base_claim_delay: 1             # 低余额时最大延迟（秒）
+  gp_cost_willingness: 3          # GP 消耗意愿（1-5），越高越优先获得 GP 任务
 
 # 数据库配置
 database:
@@ -117,8 +116,7 @@ archive-at-home-node.exe
 
 ### 任务策略配置
 
-- `base_balance_gp`: 余额延迟算法的基准值（高于该值时不延迟抢占）
-- `base_claim_delay`: 低余额时最大抢占延迟（秒）
+- `gp_cost_willingness`: GP 消耗意愿（1-5），数值越高越优先被分配 GP 任务
 
 ### 数据库配置
 
@@ -135,27 +133,23 @@ archive-at-home-node.exe
 
 | 消息类型 | 说明 | Payload |
 |---------|------|---------|
-| `TASK_ANNOUNCEMENT` | 任务广播 | `{trace_id, free_tier, estimated_gp}` |
-| `TASK_ASSIGNED` | 任务分配 | `{trace_id, gallery_id, gallery_key}` |
-| `TASK_GONE` | 任务已被抢占 | `{trace_id}` |
+| `TASK_ASSIGNMENT` | 服务器直接分配任务 | `{trace_id, gallery_id, gallery_key}` |
 
 ### 发送的消息类型
 
 | 消息类型 | 说明 | Payload |
 |---------|------|---------|
-| `FETCH_TASK` | 抢占任务 | `{trace_id, node_id}` |
-| `TASK_RESULT` | 任务结果 | `{trace_id, node_id, success, actual_gp, archive_url, error}` |
-| `NODE_STATUS` | 节点状态汇报（周期性） | `{have_free_quota, gp_balance}` |
+| `TASK_RESULT` | 任务结果 | `{trace_id, node_id, success, retriable, actual_gp, archive_url, error}` |
+| `NODE_STATUS` | 节点状态汇报（周期性） | `{have_free_quota, gp_balance, gp_cost_willingness}` |
 
 ## 任务执行流程
 
 1. **连接 Server**: 使用 ED25519 签名认证
-2. **监听广播**: 收到 `TASK_ANNOUNCEMENT` 后决定是否抢占
-3. **抢占任务**: 发送 `FETCH_TASK` 请求
-4. **执行任务**:
+2. **接收任务**: 收到 `TASK_ASSIGNMENT` 后直接执行
+3. **执行任务**:
    - 请求 E-Hentai API 获取归档下载链接
    - 解析 GP 消耗信息
-5. **提交结果**: 发送 `TASK_RESULT` 返回结果
+4. **提交结果**: 发送 `TASK_RESULT` 返回结果；失败时根据错误类型设置 `retriable` 标志
 
 ## 数据存储
 
