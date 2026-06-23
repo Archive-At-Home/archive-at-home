@@ -67,7 +67,7 @@ func (c *Client) Connect() error {
 }
 
 // nodeVersion is the semantic version of this node, matching git tags.
-const nodeVersion = "v0.6.0"
+const nodeVersion = "v0.6.1"
 
 func (c *Client) connect() error {
 	header := http.Header{}

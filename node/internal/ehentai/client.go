@@ -358,8 +358,14 @@ func (c *Client) GetArchiveURL(gid, token string) (archiveURL string, actualGP i
 	// Extract cost
 	costMatches := costPattern.FindStringSubmatch(html)
 	if len(costMatches) < 2 {
-		if strings.Contains(html, "copyright") {
-			return "", 0, 0, ErrCopyrightRestriction
+		galleryURL := fmt.Sprintf("%s/g/%s/%s/", c.baseURL, gid, token)
+		galleryResp, galleryErr := c.doRequest("GET", galleryURL, nil)
+		if galleryErr == nil {
+			galleryBody, readErr := io.ReadAll(galleryResp.Body)
+			galleryResp.Body.Close()
+			if readErr == nil && strings.Contains(strings.ToLower(string(galleryBody)), "copyright") {
+				return "", 0, 0, ErrCopyrightRestriction
+			}
 		}
 		return "", 0, 0, fmt.Errorf("cannot find cost info")
 	}
