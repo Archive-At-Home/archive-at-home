@@ -104,7 +104,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 		estimatedGP = quota.GP
 
 		if err := s.balanceSvc.FreezeGP(workCtx, userID, actualTraceID, int64(estimatedGP)); err != nil {
-			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP,
+			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0,
 				fmt.Sprintf("freeze balance: %v", err))
 			return &model.ParseResponse{Error: err.Error()}, nil
 		}
