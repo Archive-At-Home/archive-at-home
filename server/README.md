@@ -6,10 +6,9 @@ Archive-at-Home 分布式归档链接解析系统的中控服务器。
 
 - HTTP API 接口（用户请求归档链接解析）
 - WebSocket Hub（Node 通信）
-- Redis 任务调度（Lua 原子脚本）
+- Redis 任务调度 + 令牌桶限流（Lua 原子脚本）
 - PostgreSQL 数据持久化
-- 用户认证与余额系统
-- 每日签到系统
+- 用户认证与令牌桶限流
 - 管理员后台
 
 ## 快速开始
@@ -143,7 +142,7 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 
 ### GET /api/v1/me 🔒
 
-获取当前用户信息和余额。
+获取当前用户信息和令牌数量。
 
 **响应:**
 ```json
@@ -156,11 +155,11 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "telegram_id": 1234567890,
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
+    "level": 0,
     "last_used_at": "2026-02-11T09:12:00Z",
-    "last_checkin_at": "2026-02-10T08:00:00Z",
     "created_at": "2026-02-11T00:00:00Z"
   },
-  "balance": 900
+  "balance": 604800
 }
 ```
 
@@ -170,26 +169,12 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 
 ### GET /api/v1/me/balance 🔒
 
-获取 GP 余额。
+获取当前令牌数量。令牌以固定速率自动补充，上限由用户等级决定。
 
 **响应:**
 ```json
 {
-  "balance": 900
-}
-```
-
-### POST /api/v1/me/checkin 🔒
-
-每日签到，获取随机 GP 奖励（每天一次）。
-
-**响应:**
-```json
-{
-  "success": true,
-  "reward": 120,
-  "balance": 1020,
-  "message": "签到成功"
+  "balance": 500000
 }
 ```
 
@@ -246,10 +231,10 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 }
 ```
 
-**响应（失败）:**
+**响应（失败 - 令牌不足）:**
 ```json
 {
-  "error": "insufficient balance"
+  "error": "rate limited, try again later"
 }
 ```
 
@@ -274,11 +259,11 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
     "telegram_id": 1234567890,
     "api_key": "sk-xxxxxxxxxxxx",
     "status": "active",
+    "level": 0,
     "last_used_at": "2026-02-11T09:12:00Z",
-    "last_checkin_at": "2026-02-10T08:00:00Z",
     "created_at": "2026-02-11T00:00:00Z"
   },
-  "balance": 900
+  "balance": 604800
 }
 ```
 
@@ -303,15 +288,17 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 }
 ```
 
-### POST /api/v1/admin/users/:id/credits 🔑
 
-为用户充值 GP。
+### PUT /api/v1/admin/users/:id/level 🔑
+
+设置用户等级。等级 0 为普通用户，等级 ≥1 享有更快的令牌增速和更大的令牌容量。
+
+**请求头:** `Authorization: Bearer <ADMIN_TOKEN>`
 
 **请求体:**
 ```json
 {
-  "amount": 50000,
-  "remark": "活动奖励"
+  "level": 1
 }
 ```
 
@@ -319,10 +306,10 @@ Telegram OAuth 登录回调（内部接口，由前端调用）。
 ```json
 {
   "success": true,
-  "balance": 50900,
-  "message": "credits added successfully"
+  "message": "level updated"
 }
 ```
+
 
 ---
 
@@ -383,11 +370,19 @@ Node 通过 WebSocket 连接到 `/ws`。
 - TTL 仅用于 server 崩溃后的自动回收
 
 
+### 令牌桶限流
+
+- 基于 Redis 哈希 + Lua 原子脚本实现令牌桶算法
+- 令牌以固定速率自动补充，上限为 `maxCapacity / rate` 秒的累积量
+- 默认速率 1 token/s，最大容量 604,800（7 天累积）
+- 用户等级 ≥1 享有更高速率和更大容量（可配置）
+- 任务派发前原子扣减令牌，失败时退还
+
 ### GP 成本追踪
 
 - 任务先原子入队/合并（并在 Lua 内检查缓存）
-- 仅在确认“新建任务”后请求 E-Hentai 获取预估 GP 并冻结余额
-- Node 回报实际消耗，结算或退款
+- 仅在确认新建任务后请求 E-Hentai 获取预估 GP
+- Node 回报实际消耗，写入任务日志
 
 ---
 
@@ -397,8 +392,10 @@ Node 通过 WebSocket 连接到 `/ws`。
 | 脚本 | 功能 |
 |------|------|
 | `LuaPublishTask` | 原子缓存检查 + 请求合并 + 创建 collapse 哨兵 |
+| `LuaConsumeTokens` | 令牌桶原子 refill + 扣减，返回 OK 或 INSUFFICIENT |
+| `LuaRefundTokens` | 令牌桶原子 refill + 退还，上限为 maxCapacity |
 
-CompleteTask 和 FailTask 均为普通 Redis 命令（SET/DEL），无需 Lua。
+CompleteTask、FailTask、GetTokens 均为普通 Redis 命令，无需 Lua。
 
 ---
 
@@ -422,8 +419,10 @@ CompleteTask 和 FailTask 均为普通 Redis 命令（SET/DEL），无需 Lua。
 | `TELEGRAM_BOT_USERNAME` | (空) | Telegram Bot 用户名 |
 | `NODE_VERIFY_KEY` | (空) | ED25519 公钥 |
 | `ADMIN_TOKEN` | (空) | 管理员 Token |
-| `CHECKIN_MIN_GP` | `10000` | 签到最小奖励 |
-| `CHECKIN_MAX_GP` | `20000` | 签到最大奖励 |
+| `TOKEN_RATE` | `1` | 令牌增速 (tokens/s)，等级0 |
+| `TOKEN_MAX_CAPACITY` | `604800` | 最大令牌容量（7天累积），等级0 |
+| `TOKEN_VIP_RATE` | `5` | VIP 令牌增速，等级1+ |
+| `TOKEN_VIP_CAPACITY` | `3024000` | VIP 最大令牌容量，等级1+ |
 | `EMAIL_AUTH_ENABLED` | `false` | 是否启用邮箱注册/登录 |
 
 ---

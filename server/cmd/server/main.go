@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/auth"
-	"github.com/Archive-At-Home/archive-at-home/server/internal/balance"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/config"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/handler"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/middleware"
@@ -19,6 +18,7 @@ import (
 	"github.com/Archive-At-Home/archive-at-home/server/internal/scheduler"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/service"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/store"
+	"github.com/Archive-At-Home/archive-at-home/server/internal/tokenbucket"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -56,9 +56,9 @@ func main() {
 	resultWaiter := ws.NewResultWaiter()
 	hub := ws.NewHub(resultWaiter)
 
-	// ── User & Balance Services ──
+	// ── User & Token Bucket Services ──
 	userSvc := auth.NewUserService(st.DB())
-	balanceSvc := balance.NewBalanceService(st.DB())
+	tokenSvc := tokenbucket.NewTokenBucket(rdb, cfg)
 
 	// ── Node Authenticator (ED25519) ──
 	nodeAuth, err := node.NewAuthenticator(cfg.NodeVerifyKey)
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// ── Service ──
-	svc := service.NewGalleryService(sched, hub, resultWaiter, st, cfg, balanceSvc)
+	svc := service.NewGalleryService(sched, hub, resultWaiter, st, cfg, tokenSvc)
 
 	// ── Gin Router ──
 	gin.SetMode(gin.ReleaseMode)
@@ -78,8 +78,8 @@ func main() {
 
 	h := handler.NewHandler(svc, hub, nodeAuth, cfg)
 	authHandler := handler.NewAuthHandler(userSvc, cfg)
-	userHandler := handler.NewUserHandler(userSvc, balanceSvc, cfg)
-	adminHandler := handler.NewAdminHandler(userSvc, balanceSvc, hub)
+	userHandler := handler.NewUserHandler(userSvc, tokenSvc)
+	adminHandler := handler.NewAdminHandler(userSvc, tokenSvc, hub)
 
 	// Register routes
 	authHandler.RegisterRoutes(r)

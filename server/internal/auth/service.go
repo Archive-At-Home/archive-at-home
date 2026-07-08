@@ -205,12 +205,11 @@ func (s *userService) SetStatus(ctx context.Context, userID string, status strin
 	return nil
 }
 
-// UpdateLastCheckin updates the user's last checkin timestamp.
-func (s *userService) UpdateLastCheckin(ctx context.Context, userID string) error {
-	now := time.Now()
+// SetLevel sets user level (0=normal, 1+=premium).
+func (s *userService) SetLevel(ctx context.Context, userID string, level int) error {
 	result := s.db.WithContext(ctx).Model(&User{}).
 		Where("id = ?", userID).
-		UpdateColumn("last_checkin_at", now)
+		UpdateColumn("level", level)
 	if result.Error != nil {
 		return result.Error
 	}

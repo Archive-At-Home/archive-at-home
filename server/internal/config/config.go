@@ -34,12 +34,14 @@ type Config struct {
 	TelegramBotToken    string // Bot token for Telegram Login Widget verification
 	TelegramBotUsername string // Bot username for Telegram Login Widget (e.g., "EhArchive_bot")
 
-	// Checkin
-	CheckinMinGP int // Minimum GP reward for daily checkin
-	CheckinMaxGP int // Maximum GP reward for daily checkin
-
 	// Node Authentication
 	NodeVerifyKey string // ED25519 public key (Base64 encoded) for verifying node signatures
+
+	// Token Bucket
+	TokenRate        int // tokens per second for level 0 (default 1)
+	TokenMaxCapacity int // max token capacity for level 0 (default 604800 = 7*24*60*60)
+	TokenVIPRate     int // tokens per second for level 1+ (default 5)
+	TokenVIPCapacity int // max token capacity for level 1+ (default 3024000 = 5*7*24*60*60)
 
 	// Admin Authentication
 	AdminToken string // Bearer token for admin API access
@@ -65,11 +67,13 @@ func Load() *Config {
 		DBSSLMode:           envOr("DB_SSLMODE", "disable"),
 		TelegramBotToken:    envOr("TELEGRAM_BOT_TOKEN", ""),
 		TelegramBotUsername: envOr("TELEGRAM_BOT_USERNAME", ""),
-		CheckinMinGP:        envIntOr("CHECKIN_MIN_GP", 10000),
-		CheckinMaxGP:        envIntOr("CHECKIN_MAX_GP", 20000),
 		NodeVerifyKey:       envOr("NODE_VERIFY_KEY", ""),
 		AdminToken:          envOr("ADMIN_TOKEN", ""),
 		EmailAuthEnabled:    envBoolOr("EMAIL_AUTH_ENABLED", false),
+		TokenRate:           envIntOr("TOKEN_RATE", 1),
+		TokenMaxCapacity:    envIntOr("TOKEN_MAX_CAPACITY", 604800),
+		TokenVIPRate:        envIntOr("TOKEN_VIP_RATE", 5),
+		TokenVIPCapacity:    envIntOr("TOKEN_VIP_CAPACITY", 3024000),
 	}
 }
 

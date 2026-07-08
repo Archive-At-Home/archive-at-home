@@ -67,7 +67,7 @@ func (c *Client) Connect() error {
 }
 
 // nodeVersion is the semantic version of this node, matching git tags.
-const nodeVersion = "v0.6.1"
+const nodeVersion = "v0.7.0"
 
 func (c *Client) connect() error {
 	header := http.Header{}
@@ -298,10 +298,7 @@ func (c *Client) reconnectLoop(ctx context.Context) {
 		attempts := c.reconnectAttempts
 		c.mu.Unlock()
 
-		delay := reconnectInterval * time.Duration(1<<uint(min(attempts-1, maxBackoffShift)))
-		if delay > maxReconnectDelay {
-			delay = maxReconnectDelay
-		}
+		delay := min(reconnectInterval*time.Duration(1<<uint(min(attempts-1, maxBackoffShift))), maxReconnectDelay)
 
 		log.Printf("[ws] reconnecting in %v (attempt %d)...", delay, attempts)
 

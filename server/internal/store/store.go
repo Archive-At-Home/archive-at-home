@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/server/internal/auth"
-	"github.com/Archive-At-Home/archive-at-home/server/internal/balance"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -43,8 +42,6 @@ func NewStore(dsn string) (*Store, error) {
 	if err := db.AutoMigrate(
 		&model.TaskLog{},
 		&auth.User{},
-		&balance.Account{},
-		&balance.Transaction{},
 	); err != nil {
 		return nil, err
 	}

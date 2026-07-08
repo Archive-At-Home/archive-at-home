@@ -10,17 +10,17 @@ import (
 // ─────────────────────────────────────────────
 
 type User struct {
-	ID            string     `json:"id" gorm:"primaryKey"`
-	Email         *string    `json:"email,omitempty" gorm:"uniqueIndex"`
-	Password      string     `json:"-"` // bcrypt hash, never serialised
-	Nickname      string     `json:"nickname"`
-	Provider      string     `json:"provider" gorm:"default:email"` // "email" | "telegram"
-	TelegramID    *int64     `json:"telegram_id,omitempty" gorm:"uniqueIndex"`
-	APIKey        string     `json:"api_key" gorm:"uniqueIndex"`   // non-expiring key, issued on login/register
-	Status        string     `json:"status" gorm:"default:active"` // active | banned | suspended
-	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
-	LastCheckinAt *time.Time `json:"last_checkin_at,omitempty"` // last daily checkin time
-	CreatedAt     time.Time  `json:"created_at"`
+	ID         string     `json:"id" gorm:"primaryKey"`
+	Email      *string    `json:"email,omitempty" gorm:"uniqueIndex"`
+	Password   string     `json:"-"` // bcrypt hash, never serialised
+	Nickname   string     `json:"nickname"`
+	Provider   string     `json:"provider" gorm:"default:email"` // "email" | "telegram"
+	TelegramID *int64     `json:"telegram_id,omitempty" gorm:"uniqueIndex"`
+	APIKey     string     `json:"api_key" gorm:"uniqueIndex"`   // non-expiring key, issued on login/register
+	Status     string     `json:"status" gorm:"default:active"` // active | banned | suspended
+	Level      int        `json:"level" gorm:"default:0"`       // user level, 0=normal, 1+=premium
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // ─────────────────────────────────────────────
@@ -56,6 +56,6 @@ type UserService interface {
 	// SetStatus sets user account status (active / banned / suspended).
 	SetStatus(ctx context.Context, userID string, status string) error
 
-	// UpdateLastCheckin updates the user's last checkin timestamp.
-	UpdateLastCheckin(ctx context.Context, userID string) error
+	// SetLevel sets user level (0=normal, 1+=premium).
+	SetLevel(ctx context.Context, userID string, level int) error
 }

@@ -2,15 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
-	"github.com/Archive-At-Home/archive-at-home/server/internal/balance"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/config"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/model"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/scheduler"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/store"
+	"github.com/Archive-At-Home/archive-at-home/server/internal/tokenbucket"
 	"github.com/Archive-At-Home/archive-at-home/server/internal/ws"
 	"github.com/google/uuid"
 )
@@ -29,7 +30,7 @@ type GalleryService struct {
 	resultWaiter *ws.ResultWaiter
 	store        *store.Store
 	cfg          *config.Config
-	balanceSvc   balance.BalanceService
+	tokenSvc     *tokenbucket.TokenBucket
 }
 
 // NewGalleryService creates the service.
@@ -39,7 +40,7 @@ func NewGalleryService(
 	resultWaiter *ws.ResultWaiter,
 	store *store.Store,
 	cfg *config.Config,
-	balanceSvc balance.BalanceService,
+	tokenSvc *tokenbucket.TokenBucket,
 ) *GalleryService {
 	return &GalleryService{
 		sched:        sched,
@@ -47,15 +48,16 @@ func NewGalleryService(
 		resultWaiter: resultWaiter,
 		store:        store,
 		cfg:          cfg,
-		balanceSvc:   balanceSvc,
+		tokenSvc:     tokenSvc,
 	}
 }
 
 // ParseGallery is the main business flow.
 //
 // userID is injected by the API key middleware (not from the request body).
+// userLevel is the user's tier level (0=normal, 1+=premium) for token bucket rate selection.
 // client identifies the request source (resolved from X-Client header or User-Agent).
-func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string, req *model.ParseRequest) (*model.ParseResponse, error) {
+func (s *GalleryService) ParseGallery(ctx context.Context, userID string, userLevel int, client string, req *model.ParseRequest) (*model.ParseResponse, error) {
 	baseCtx := context.WithoutCancel(ctx)
 	workCtx, workCancel := context.WithTimeout(baseCtx, s.cfg.TaskWaitTimeout)
 	defer workCancel()
@@ -95,7 +97,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 	if created {
 		quota, err := ResolveParseParams(workCtx, s.cfg, req.GalleryID, req.GalleryKey)
 		if err != nil {
-			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0,
+			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0, userLevel,
 				fmt.Sprintf("resolve e-hentai params: %v", err))
 			return &model.ParseResponse{Error: err.Error()}, nil
 		}
@@ -103,19 +105,27 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 		freeTier = quota.IsNew
 		estimatedGP = quota.GP
 
-		if err := s.balanceSvc.FreezeGP(workCtx, userID, actualTraceID, int64(estimatedGP)); err != nil {
-			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0,
-				fmt.Sprintf("freeze balance: %v", err))
-			return &model.ParseResponse{Error: err.Error()}, nil
+		// Consume tokens from the bucket before dispatching
+		if err := s.tokenSvc.Consume(workCtx, userID, userLevel, int64(estimatedGP)); err != nil {
+			if errors.Is(err, tokenbucket.ErrInsufficientTokens) {
+				s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0, userLevel,
+					err.Error())
+				return &model.ParseResponse{Error: "rate limited, try again later"}, nil
+			}
+
+			log.Printf("[service] token consume error user=%s trace=%s: %v", userID, actualTraceID, err)
+			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, 0, userLevel,
+				"token service unavailable")
+			return &model.ParseResponse{Error: "service unavailable, try again later"}, nil
 		}
-		log.Printf("[service] froze %d GP for user=%s trace=%s", estimatedGP, userID, actualTraceID)
+		log.Printf("[service] consumed %d tokens for user=%s trace=%s", estimatedGP, userID, actualTraceID)
 
 		log.Printf("[service] NEW task trace=%s user=%s gallery=%s key=%s force=%v free=%v estGP=%d",
 			actualTraceID, userID, req.GalleryID, req.GalleryKey, req.Force, freeTier, estimatedGP)
 
 		candidates = s.hub.SelectCandidates(freeTier, estimatedGP)
 		if len(candidates) == 0 {
-			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP,
+			s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, userLevel,
 				"no available nodes")
 			return &model.ParseResponse{Error: "no available nodes"}, nil
 		}
@@ -138,7 +148,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 			switch {
 			case result.Success:
 				if created {
-					s.compensateSuccess(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, result.ArchiveURL)
+					s.compensateSuccess(workCtx, userID, req.GalleryID, actualTraceID, result.ArchiveURL)
 					s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 						req.Force, freeTier, estimatedGP, candidates[candidateIdx], true, "", result.ActualGP)
 				}
@@ -149,7 +159,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 
 			case !result.Retriable:
 				if created {
-					s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, "")
+					s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, userLevel, "")
 					s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 						req.Force, freeTier, estimatedGP, candidates[candidateIdx], false, result.Error, result.ActualGP)
 				}
@@ -161,7 +171,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 					candidateIdx++
 					if candidateIdx >= len(candidates) {
 						reason := "all candidates exhausted"
-						s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, reason)
+						s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, userLevel, reason)
 						s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 							req.Force, freeTier, estimatedGP, "", false, reason, result.ActualGP)
 						return &model.ParseResponse{Error: reason}, nil
@@ -172,7 +182,7 @@ func (s *GalleryService) ParseGallery(ctx context.Context, userID, client string
 
 		case <-workCtx.Done():
 			if created {
-				s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, errMsgTimeout)
+				s.compensateFailure(workCtx, userID, req.GalleryID, actualTraceID, estimatedGP, userLevel, errMsgTimeout)
 				s.store.LogTask(actualTraceID, userID, client, req.GalleryID, req.GalleryKey,
 					req.Force, freeTier, estimatedGP, "", false, errMsgTimeout, 0)
 			}
@@ -189,9 +199,9 @@ func compensationCtx(parent context.Context) (context.Context, context.CancelFun
 	return context.WithTimeout(context.WithoutCancel(parent), compensationTimeout)
 }
 
-// compensateFailure removes the collapsing sentinel and refunds frozen GP.
+// compensateFailure removes the collapsing sentinel and refunds consumed tokens.
 // When notifyReason is non-empty, collapsed waiters are notified with that reason.
-func (s *GalleryService) compensateFailure(parent context.Context, userID, galleryID, traceID string, estimatedGP int, notifyReason string) {
+func (s *GalleryService) compensateFailure(parent context.Context, userID, galleryID, traceID string, estimatedGP int, userLevel int, notifyReason string) {
 	ctx, cancel := compensationCtx(parent)
 	defer cancel()
 
@@ -200,10 +210,10 @@ func (s *GalleryService) compensateFailure(parent context.Context, userID, galle
 	}
 
 	if estimatedGP > 0 {
-		if _, err := s.balanceSvc.RefundTask(ctx, userID, traceID, int64(estimatedGP)); err != nil {
-			log.Printf("[service] refund error: %v", err)
+		if err := s.tokenSvc.Refund(ctx, userID, userLevel, int64(estimatedGP)); err != nil {
+			log.Printf("[service] token refund error: %v", err)
 		} else {
-			log.Printf("[service] refunded %d GP trace=%s", estimatedGP, traceID)
+			log.Printf("[service] refunded %d tokens trace=%s", estimatedGP, traceID)
 		}
 	}
 
@@ -216,18 +226,12 @@ func (s *GalleryService) compensateFailure(parent context.Context, userID, galle
 	}
 }
 
-// compensateSuccess stores the result in cache, removes the sentinel, and settles the balance.
-func (s *GalleryService) compensateSuccess(parent context.Context, userID, galleryID, traceID string, estimatedGP int, archiveURL string) {
+// compensateSuccess stores the result in cache, removes the sentinel.
+func (s *GalleryService) compensateSuccess(parent context.Context, userID, galleryID, traceID string, archiveURL string) {
 	ctx, cancel := compensationCtx(parent)
 	defer cancel()
 
 	if err := s.sched.CompleteTask(ctx, userID, galleryID, archiveURL); err != nil {
 		log.Printf("[service] complete task error trace=%s: %v", traceID, err)
-	}
-
-	if _, err := s.balanceSvc.SettleTask(ctx, userID, traceID, int64(estimatedGP), 0); err != nil {
-		log.Printf("[service] settle balance error: %v", err)
-	} else {
-		log.Printf("[service] settled task trace=%s frozen=%d", traceID, estimatedGP)
 	}
 }

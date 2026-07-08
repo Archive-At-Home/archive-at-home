@@ -82,10 +82,12 @@ func (h *Handler) ParseGallery(c *gin.Context) {
 	}
 
 	// UserID comes from the API key middleware, not the request body.
-	userID := appctx.GetUserID(c)
+	user := appctx.MustGetUser(c)
+	userID := user.ID
+	userLevel := user.Level
 	client := resolveClient(c.GetHeader("X-Client"), c.GetHeader("User-Agent"))
 
-	resp, err := h.svc.ParseGallery(c.Request.Context(), userID, client, &req)
+	resp, err := h.svc.ParseGallery(c.Request.Context(), userID, userLevel, client, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

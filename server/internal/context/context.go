@@ -17,9 +17,3 @@ func MustGetUser(c *gin.Context) *auth.User {
 	}
 	return v.(*auth.User)
 }
-
-// GetUserID is a shorthand that returns the user ID string.
-func GetUserID(c *gin.Context) string {
-	u := MustGetUser(c)
-	return u.ID
-}

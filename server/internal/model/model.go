@@ -16,6 +16,11 @@ func CollapsingKey(userID, galleryID string) string {
 	return "inflight:" + userID + ":" + galleryID
 }
 
+// TokenBucketKey builds the per-user token bucket key: "tokens:{UserID}"
+func TokenBucketKey(userID string) string {
+	return "tokens:" + userID
+}
+
 // ─────────────────────────────────────────────
 // WebSocket Protocol Messages
 // ─────────────────────────────────────────────
