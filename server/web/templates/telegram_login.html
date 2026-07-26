@@ -204,6 +204,10 @@
         const tgWebApp = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
         const isMiniApp = Boolean(tgWebApp && typeof tgWebApp.initData === 'string' && tgWebApp.initData.length > 0);
 
+        function isTelegramUrl(url) {
+            return url.protocol === 'tg:' || url.hostname === 't.me' || url.hostname.endsWith('.t.me');
+        }
+
         function setModeUI() {
             const subtitleEl = document.getElementById('subtitle');
             if (isMiniApp) {
@@ -315,7 +319,7 @@
                 const finalUrl = new URL(redirectUrl);
                 finalUrl.searchParams.set(paramName, apiKey);
 
-                if (tgWebApp) {
+                if (tgWebApp && isTelegramUrl(finalUrl)) {
                     if (tgWebApp.platform === 'android') {
                         window.location.href = finalUrl.toString();
                     } else {

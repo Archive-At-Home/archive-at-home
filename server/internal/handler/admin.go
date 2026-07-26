@@ -13,13 +13,13 @@ import (
 
 // AdminHandler handles admin-only endpoints.
 type AdminHandler struct {
-	userSvc  auth.UserService
+	userSvc  *auth.UserService
 	tokenSvc *tokenbucket.TokenBucket
 	hub      *ws.Hub
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(userSvc auth.UserService, tokenSvc *tokenbucket.TokenBucket, hub *ws.Hub) *AdminHandler {
+func NewAdminHandler(userSvc *auth.UserService, tokenSvc *tokenbucket.TokenBucket, hub *ws.Hub) *AdminHandler {
 	return &AdminHandler{
 		userSvc:  userSvc,
 		tokenSvc: tokenSvc,

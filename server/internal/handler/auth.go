@@ -15,12 +15,12 @@ import (
 
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
-	userSvc auth.UserService
+	userSvc *auth.UserService
 	cfg     *config.Config
 }
 
 // NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(userSvc auth.UserService, cfg *config.Config) *AuthHandler {
+func NewAuthHandler(userSvc *auth.UserService, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{userSvc: userSvc, cfg: cfg}
 }
 

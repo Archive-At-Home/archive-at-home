@@ -12,12 +12,12 @@ import (
 
 // UserHandler handles user-related endpoints.
 type UserHandler struct {
-	userSvc  auth.UserService
+	userSvc  *auth.UserService
 	tokenSvc *tokenbucket.TokenBucket
 }
 
 // NewUserHandler creates a new UserHandler.
-func NewUserHandler(userSvc auth.UserService, tokenSvc *tokenbucket.TokenBucket) *UserHandler {
+func NewUserHandler(userSvc *auth.UserService, tokenSvc *tokenbucket.TokenBucket) *UserHandler {
 	return &UserHandler{
 		userSvc:  userSvc,
 		tokenSvc: tokenSvc,
@@ -27,10 +27,6 @@ func NewUserHandler(userSvc auth.UserService, tokenSvc *tokenbucket.TokenBucket)
 // ─────────────────────────────────────────────
 // POST /api/v1/me/reset-key
 // ─────────────────────────────────────────────
-
-type ResetKeyResponse struct {
-	APIKey string `json:"api_key"`
-}
 
 // ResetAPIKey regenerates the user's API key.
 func (h *UserHandler) ResetAPIKey(c *gin.Context) {
@@ -42,18 +38,12 @@ func (h *UserHandler) ResetAPIKey(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ResetKeyResponse{
-		APIKey: updatedUser.APIKey,
-	})
+	c.JSON(http.StatusOK, gin.H{"api_key": updatedUser.APIKey})
 }
 
 // ─────────────────────────────────────────────
 // GET /api/v1/me/balance
 // ─────────────────────────────────────────────
-
-type BalanceResponse struct {
-	Balance int64 `json:"balance"`
-}
 
 // MyBalance returns the user's current available token count.
 func (h *UserHandler) MyBalance(c *gin.Context) {
@@ -65,19 +55,7 @@ func (h *UserHandler) MyBalance(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, BalanceResponse{
-		Balance: tokens,
-	})
-}
-
-// RegisterRoutes registers user routes on the Gin engine.
-func (h *UserHandler) RegisterRoutes(r *gin.Engine, apiKeyMw gin.HandlerFunc) {
-	api := r.Group("/api/v1/me", apiKeyMw)
-	{
-		api.GET("", h.Me)
-		api.POST("/reset-key", h.ResetAPIKey)
-		api.GET("/balance", h.MyBalance)
-	}
+	c.JSON(http.StatusOK, gin.H{"balance": tokens})
 }
 
 // ─────────────────────────────────────────────
@@ -100,4 +78,14 @@ func (h *UserHandler) Me(c *gin.Context) {
 		User:    user,
 		Balance: tokens,
 	})
+}
+
+// RegisterRoutes registers user routes on the Gin engine.
+func (h *UserHandler) RegisterRoutes(r *gin.Engine, apiKeyMw gin.HandlerFunc) {
+	api := r.Group("/api/v1/me", apiKeyMw)
+	{
+		api.GET("", h.Me)
+		api.POST("/reset-key", h.ResetAPIKey)
+		api.GET("/balance", h.MyBalance)
+	}
 }

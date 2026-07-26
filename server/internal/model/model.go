@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/Archive-At-Home/archive-at-home/server/internal/auth"
+)
 
 // ─────────────────────────────────────────────
 // Redis Key Builders
@@ -111,6 +115,6 @@ type ParseResponse struct {
 // UserProfile represents user profile with balance information.
 // Used by both /api/v1/me and /api/v1/admin/users/:id endpoints.
 type UserProfile struct {
-	User    any   `json:"user"`    // *auth.User
-	Balance int64 `json:"balance"` // Available balance (balance - frozen)
+	User    *auth.User `json:"user"`
+	Balance int64      `json:"balance"`
 }

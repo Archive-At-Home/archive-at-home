@@ -14,7 +14,7 @@ import (
 // injects the authenticated User into the context.
 //
 // Lookup is delegated to auth.UserService.GetByAPIKey.
-func APIKeyAuth(userSvc auth.UserService) gin.HandlerFunc {
+func APIKeyAuth(userSvc *auth.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw := extractBearerToken(c)
 		if raw == "" {
