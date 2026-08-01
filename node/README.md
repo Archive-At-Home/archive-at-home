@@ -18,7 +18,7 @@ Archive-at-Home 分布式归档链接解析系统的工作节点。
 
 2. 启动服务：
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 方式二：二进制部署

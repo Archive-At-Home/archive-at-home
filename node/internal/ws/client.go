@@ -67,7 +67,9 @@ func (c *Client) Connect() error {
 }
 
 // nodeVersion is the semantic version of this node, matching git tags.
-const nodeVersion = "v0.7.0"
+// It is injected at build time via ldflags (-X) when building for release;
+// the default is a placeholder high enough to pass the server's min version check.
+var nodeVersion = "v9.9.9"
 
 func (c *Client) connect() error {
 	header := http.Header{}

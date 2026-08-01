@@ -19,24 +19,23 @@ Archive-at-Home 分布式归档链接解析系统的中控服务器。
 
 2. 启动服务：
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+
+3. 更新服务：`main` 分支 Server 代码变更后自动构建并推送镜像，重新拉取即可：
+```bash
+docker compose pull server
+docker compose up -d
+```
+如需固定版本或回滚，可将 `server/docker-compose.yml` 中的镜像 tag 改为 `sha-<commit>`（如 `server:sha-4d1ce9d`，commit 前 7 位）。
 
 ### 方式二：二进制部署
 
-1. 从 [Releases](https://github.com/Archive-At-Home/archive-at-home/releases) 下载 `archive-at-home-server-linux-amd64.tar.gz`
+Server 不通过 Releases 分发，需自行编译：
 
-2. 解压并运行：
 ```bash
-tar -xzf archive-at-home-server-linux-amd64.tar.gz
-
-# 设置环境变量
-export SERVER_ADDR=:8080
-export DB_HOST=localhost
-export REDIS_ADDR=localhost:6379
-# ... 其他配置
-
-./archive-at-home-server
+cd server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o archive-at-home-server ./cmd/server
 ```
 
 ## API 文档

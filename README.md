@@ -16,12 +16,16 @@
 
 ### 部署 Server
 
-从 [Releases](https://github.com/Archive-At-Home/archive-at-home/releases) 下载或使用 Docker Compose：
+Server 通过 GitHub Container Registry 镜像分发（`ghcr.io/archive-at-home/archive-at-home/server`），使用 Docker Compose：
 
 ```bash
 cd server
-docker-compose up -d
+docker compose up -d
 ```
+
+镜像 tag 说明：
+- `latest` - 跟随 main 分支自动更新（Server 有变更即自动构建推送）
+- `sha-<commit>` - 固定版本，可回滚到任意历史构建
 
 详细配置和部署方式请参考 **[server/README.md](server/README.md)**
 
@@ -32,7 +36,7 @@ docker-compose up -d
 ```bash
 cd node
 # 先创建 config.yaml 配置文件
-docker-compose up -d
+docker compose up -d
 ```
 
 详细配置和部署方式请参考 **[node/README.md](node/README.md)**
