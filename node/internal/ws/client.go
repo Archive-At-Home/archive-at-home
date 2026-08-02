@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/node/internal/model"
+	"github.com/Archive-At-Home/archive-at-home/node/internal/version"
 	"github.com/gorilla/websocket"
 )
 
@@ -66,15 +67,10 @@ func (c *Client) Connect() error {
 	return c.connect()
 }
 
-// nodeVersion is the semantic version of this node, matching git tags.
-// It is injected at build time via ldflags (-X) when building for release;
-// the default is a placeholder high enough to pass the server's min version check.
-var nodeVersion = "v9.9.9"
-
 func (c *Client) connect() error {
 	header := http.Header{}
 	header.Set("X-Auth-Token", c.authToken)
-	header.Set("X-Node-Version", nodeVersion)
+	header.Set("X-Node-Version", version.Version)
 
 	conn, resp, err := websocket.DefaultDialer.Dial(c.serverURL, header)
 	if err != nil {

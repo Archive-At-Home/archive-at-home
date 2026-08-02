@@ -12,6 +12,7 @@ import (
 	"github.com/Archive-At-Home/archive-at-home/node/internal/database"
 	"github.com/Archive-At-Home/archive-at-home/node/internal/ehentai"
 	"github.com/Archive-At-Home/archive-at-home/node/internal/node"
+	"github.com/Archive-At-Home/archive-at-home/node/internal/version"
 )
 
 func main() {
@@ -24,7 +25,7 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	log.Printf("Starting Archive-at-Home node %s", cfg.Node.ID)
+	log.Printf("Starting Archive-at-Home node %s (version %s)", cfg.Node.ID, version.Version)
 	log.Printf("Connecting to server: %s", cfg.Server.URL)
 
 	// Initialize database
@@ -62,6 +63,9 @@ func main() {
 	// Start node
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Check for updates in the background
+	version.StartUpdateCheck(ctx)
 
 	// Determine dashboard address
 	dashboardAddr := ""

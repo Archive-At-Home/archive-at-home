@@ -31,6 +31,7 @@ const (
 // Client represents a single WebSocket connection from a worker node.
 type Client struct {
 	NodeID   string
+	Version  string
 	conn     *websocket.Conn
 	hub      *Hub
 	send     chan []byte
@@ -47,12 +48,13 @@ func (c *Client) StatusSnapshot() (model.NodeStatus, time.Time) {
 }
 
 // NewClient wraps a WebSocket connection.
-func NewClient(nodeID string, conn *websocket.Conn, hub *Hub) *Client {
+func NewClient(nodeID, version string, conn *websocket.Conn, hub *Hub) *Client {
 	return &Client{
-		NodeID: nodeID,
-		conn:   conn,
-		hub:    hub,
-		send:   make(chan []byte, sendBufSize),
+		NodeID:  nodeID,
+		Version: version,
+		conn:    conn,
+		hub:     hub,
+		send:    make(chan []byte, sendBufSize),
 	}
 }
 

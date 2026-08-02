@@ -195,7 +195,7 @@ func (h *Handler) WebSocket(c *gin.Context) {
 	}
 
 	// Register client and start listening
-	client := ws.NewClient(nodeID, conn, h.hub)
+	client := ws.NewClient(nodeID, c.GetHeader("X-Node-Version"), conn, h.hub)
 	if err := client.Run(c.Request.Context()); err != nil {
 		log.Printf("[handler] client registration failed for node %s: %v", nodeID, err)
 		return

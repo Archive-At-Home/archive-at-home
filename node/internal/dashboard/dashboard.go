@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Archive-At-Home/archive-at-home/node/internal/database"
+	"github.com/Archive-At-Home/archive-at-home/node/internal/version"
 )
 
 //go:embed templates/*
@@ -41,9 +42,11 @@ type Stats struct {
 	AvgSizeMiB           float64 `json:"avgSizeMiB"`
 
 	// Session info
-	NodeID    string    `json:"nodeId"`
-	StartTime time.Time `json:"startTime"`
-	ServerURL string    `json:"serverUrl"`
+	NodeID     string    `json:"nodeId"`
+	StartTime  time.Time `json:"startTime"`
+	ServerURL  string    `json:"serverUrl"`
+	Version    string    `json:"version"`
+	NewVersion string    `json:"newVersion"`
 }
 
 // Dashboard manages the node dashboard
@@ -60,10 +63,12 @@ type Dashboard struct {
 func NewDashboard(nodeID, serverURL string, maxGPCost int) *Dashboard {
 	return &Dashboard{
 		stats: Stats{
-			NodeID:    nodeID,
-			ServerURL: serverURL,
-			StartTime: time.Now(),
-			MaxGPCost: maxGPCost,
+			NodeID:     nodeID,
+			ServerURL:  serverURL,
+			StartTime:  time.Now(),
+			MaxGPCost:  maxGPCost,
+			Version:    version.Version,
+			NewVersion: version.NewVersion(),
 		},
 	}
 }
@@ -101,6 +106,9 @@ func (d *Dashboard) GetStats() Stats {
 	aggregateStatsProvider := d.aggregateStatsProvider
 	nodeStatusProvider := d.nodeStatusProvider
 	d.mu.RUnlock()
+
+	stats.Version = version.Version
+	stats.NewVersion = version.NewVersion()
 
 	if nodeStatusProvider != nil {
 		haveFree, gpBalance := nodeStatusProvider()

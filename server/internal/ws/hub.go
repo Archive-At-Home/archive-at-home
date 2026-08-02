@@ -80,6 +80,7 @@ func (w *ResultWaiter) Notify(traceID string, result *model.TaskResult) {
 // NodeInfo holds the last reported status for a connected node.
 type NodeInfo struct {
 	model.NodeStatus
+	Version    string    `json:"version"`
 	ReportedAt time.Time `json:"reported_at"`
 }
 
@@ -108,7 +109,7 @@ func (h *Hub) Register(c *Client) error {
 		return fmt.Errorf("node %s already connected", c.NodeID)
 	}
 	h.clients[c.NodeID] = c
-	log.Printf("[hub] node %s connected (total: %d)", c.NodeID, len(h.clients))
+	log.Printf("[hub] node %s connected (version %s), total: %d", c.NodeID, c.Version, len(h.clients))
 	return nil
 }
 
@@ -134,7 +135,7 @@ func (h *Hub) NodeInfoSnapshot() map[string]NodeInfo {
 	snap := make(map[string]NodeInfo, len(h.clients))
 	for id, c := range h.clients {
 		s, at := c.StatusSnapshot()
-		snap[id] = NodeInfo{NodeStatus: s, ReportedAt: at}
+		snap[id] = NodeInfo{NodeStatus: s, Version: c.Version, ReportedAt: at}
 	}
 	return snap
 }

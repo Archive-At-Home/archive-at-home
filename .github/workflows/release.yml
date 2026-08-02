@@ -40,10 +40,10 @@ jobs:
         working-directory: ./node
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X github.com/Archive-At-Home/archive-at-home/node/internal/ws.nodeVersion=${{ github.ref_name }}" -o archive-at-home-node.exe ./cmd/node
+            CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X github.com/Archive-At-Home/archive-at-home/node/internal/version.Version=${{ github.ref_name }}" -o archive-at-home-node.exe ./cmd/node
             zip archive-at-home-node-${{ matrix.goos }}-${{ matrix.goarch }}.zip archive-at-home-node.exe
           else
-            CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X github.com/Archive-At-Home/archive-at-home/node/internal/ws.nodeVersion=${{ github.ref_name }}" -o archive-at-home-node ./cmd/node
+            CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X github.com/Archive-At-Home/archive-at-home/node/internal/version.Version=${{ github.ref_name }}" -o archive-at-home-node ./cmd/node
             tar -czf archive-at-home-node-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz archive-at-home-node
           fi
 

@@ -44,6 +44,17 @@ function updateUI() {
     // Node info
     document.getElementById('nodeId').textContent = '节点 ID: ' + stats.nodeId;
     document.getElementById('serverUrl').textContent = '服务器: ' + stats.serverUrl;
+    document.getElementById('nodeVersion').textContent = '版本: ' + stats.version;
+
+    // Update banner
+    const updateBanner = document.getElementById('updateBanner');
+    if (stats.newVersion) {
+        document.getElementById('newVersion').textContent = stats.newVersion;
+        document.getElementById('currentVersion').textContent = stats.version;
+        updateBanner.style.display = 'block';
+    } else {
+        updateBanner.style.display = 'none';
+    }
 
     // Task statistics
     document.getElementById('todayTasksCompleted').textContent = stats.todayTasksCompleted;

@@ -35,6 +35,22 @@ body {
     font-size: 14px;
 }
 
+.update-banner {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    border-radius: 10px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.update-banner a {
+    color: #92400e;
+    font-weight: 600;
+}
+
 .status-card {
     background: white;
     border-radius: 10px;
